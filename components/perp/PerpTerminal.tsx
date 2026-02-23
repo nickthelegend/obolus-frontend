@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAccount } from '@starknet-react/core';
 import { useStore } from '@/lib/store';
-import { TrendingUp, TrendingDown, Shield, Wallet, Activity, Zap, Info, Search, ChevronDown, Coins } from 'lucide-react';
+import { TrendingUp, TrendingDown, Shield, Wallet, Activity, Zap, Info, Search, ChevronDown, Coins, Loader2 } from 'lucide-react';
 import { SealedPositionList } from './SealedPositionList';
 import { AdvancedRealTimeChart } from "react-ts-tradingview-widgets";
 import { PRICE_FEED_IDS, AssetType } from '@/lib/utils/priceFeed';
@@ -11,7 +11,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 export function PerpTerminal() {
     const { address, status } = useAccount();
-    const { tongoPrivKey, currentPrice, selectedAsset, setSelectedAsset, placeBetFromHouseBalance, houseBalance, requestFaucet } = useStore();
+    const { tongoPrivKey, currentPrice, selectedAsset, setSelectedAsset, placeBetFromHouseBalance, houseBalance, requestFaucet, isLoading } = useStore();
+    const [justClaimed, setJustClaimed] = useState(false);
+
+    // Mock USDT Address for demo
+    const USDT_ADDRESS = "0x0504718E23Ad56755109C6750711D5F11277eF2dE2dB31926Bcd5D6507aC5b8915";
 
     // UI State
     const [leverage, setLeverage] = useState(10);
@@ -230,12 +234,29 @@ export function PerpTerminal() {
                         </div>
                         <div className="mt-4 flex flex-col gap-2">
                             <button
-                                onClick={handleFaucet}
-                                className="w-full py-2 bg-stark-purple/20 hover:bg-stark-purple/30 border border-stark-purple/40 text-stark-purple rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95"
+                                onClick={async () => {
+                                    await handleFaucet();
+                                    setJustClaimed(true);
+                                    setTimeout(() => setJustClaimed(false), 3000);
+                                }}
+                                disabled={!address || isLoading}
+                                className={`w-full py-2 bg-stark-orange/20 hover:bg-stark-orange/30 border border-stark-orange/40 text-stark-orange rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 ${justClaimed ? 'bg-green-500/20 border-green-500/40 text-green-400' : ''}`}
                             >
-                                <Coins className="w-3 h-3" /> Get Testnet USDT
+                                {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : (justClaimed ? <Shield className="w-3 h-3" /> : <Coins className="w-3 h-3" />)}
+                                {justClaimed ? 'Distributed $1,000 USDT' : 'Request USDT Faucet'}
                             </button>
-                            <div className="text-[9px] text-muted-foreground uppercase flex justify-between px-1">
+
+                            <div className="flex flex-col gap-1 mt-1">
+                                <span className="text-[8px] text-muted-foreground uppercase font-bold tracking-tight">USDT Contract</span>
+                                <div className="flex items-center gap-2 bg-black/40 p-1.5 rounded border border-white/5 group relative overflow-hidden">
+                                    <span className="text-[7px] text-white/40 font-mono truncate flex-1">{USDT_ADDRESS}</span>
+                                    <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-black/80 to-transparent flex items-center justify-center">
+                                        <Zap className="w-2 h-2 text-stark-orange opacity-50" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="text-[9px] text-muted-foreground uppercase flex justify-between px-1 mt-1">
                                 <span>Risk: Low</span>
                                 <span>Isolated</span>
                             </div>
