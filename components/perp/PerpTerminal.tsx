@@ -8,14 +8,15 @@ import { SealedPositionList } from './SealedPositionList';
 import { AdvancedRealTimeChart } from "react-ts-tradingview-widgets";
 import { PRICE_FEED_IDS, AssetType } from '@/lib/utils/priceFeed';
 import { motion, AnimatePresence } from 'framer-motion';
+import { CallData } from 'starknet';
 
 export function PerpTerminal() {
-    const { address, status } = useAccount();
+    const { address, status, account } = useAccount();
     const { tongoPrivKey, currentPrice, selectedAsset, setSelectedAsset, placeBetFromHouseBalance, houseBalance, requestFaucet, isLoading, setGameMode } = useStore();
     const [justClaimed, setJustClaimed] = useState(false);
 
-    // Mock USDT Address for demo
-    const USDT_ADDRESS = "0x0504718E23Ad56755109C6750711D5F11277eF2dE2dB31926Bcd5D6507aC5b8915";
+    // Real USDT Address from ENV
+    const USDT_ADDRESS = process.env.NEXT_PUBLIC_USDT_CONTRACT || "0x03aa8782bedaa9c24fda11672b5c9280306d66cec5b9a4955e6226e9b633b63e";
 
     // UI State
     const [leverage, setLeverage] = useState(10);
@@ -44,11 +45,39 @@ export function PerpTerminal() {
     const assets = Object.keys(PRICE_FEED_IDS) as AssetType[];
     const filteredAssets = assets.filter(a => a.toLowerCase().includes(searchQuery.toLowerCase()));
 
+    // REAL SMART CONTRACT TRADE EXECUTION
     const handleTrade = async (side: 'long' | 'short') => {
-        if (!address || !size) return;
+        if (!address || !size || !account) return;
         setIsPlacing(true);
 
         try {
+            const collateralAmount = parseFloat(size) * currentPrice / leverage;
+            const collateralBaseUnits = BigInt(Math.floor(collateralAmount * 1e6)); // 6 decimals for USDT
+
+            // REAL CONTRACT CALL: Open Position
+            // In devnet, we use placeholder ciphertexts for Tongo to demo the call flow
+            const tx = await account.execute([
+                {
+                    contractAddress: process.env.NEXT_PUBLIC_PERP_CONTRACT!,
+                    entrypoint: "deposit_collateral",
+                    calldata: CallData.compile([collateralBaseUnits.toString()])
+                },
+                {
+                    contractAddress: process.env.NEXT_PUBLIC_PERP_CONTRACT!,
+                    entrypoint: "open_position_sealed",
+                    calldata: CallData.compile([
+                        "0x123", // ct_size_L (placeholder)
+                        "0x456", // ct_size_R (placeholder)
+                        "0x789", // ct_price_L (placeholder)
+                        "0xabc", // ct_price_R (placeholder)
+                        collateralBaseUnits.toString()
+                    ])
+                }
+            ]);
+
+            console.log("Real Trade Tx:", tx.transaction_hash);
+
+            // Also record in Supabase for history UI
             await placeBetFromHouseBalance(
                 size,
                 `${side === 'long' ? 'UP' : 'DOWN'}-${leverage}`,
@@ -63,9 +92,26 @@ export function PerpTerminal() {
         }
     };
 
+    // REAL SMART CONTRACT FAUCET
     const handleFaucet = async () => {
-        if (!address) return;
-        await requestFaucet(address);
+        if (!address || !account) return;
+
+        try {
+            setIsPlacing(true);
+            const tx = await account.execute({
+                contractAddress: USDT_ADDRESS,
+                entrypoint: "faucet",
+                calldata: []
+            });
+            console.log("Faucet Tx:", tx.transaction_hash);
+
+            // Sync with local balance store
+            await requestFaucet(address);
+        } catch (error) {
+            console.error("Faucet failed:", error);
+        } finally {
+            setIsPlacing(false);
+        }
     };
 
     return (

@@ -3,11 +3,11 @@ import { Account, ProviderInterface, CallData } from "starknet";
 const OBOLUS_PERP_ADDRESS = process.env.NEXT_PUBLIC_PERP_CONTRACT || "";
 const ORACLE_ADDRESS = process.env.NEXT_PUBLIC_ORACLE_CONTRACT || "";
 
-export async function openPosition(
+export async function openPositionSealed(
   account: Account,
-  size: bigint,        // positive = long, negative = short
-  leverage: number,    
-  collateral: bigint,  // USDC in base units (e.g. 1000000 for 1 USDC)
+  ct_size: { L: string, R: string },
+  ct_price: { L: string, R: string },
+  collateral: bigint,
 ) {
   return account.execute([
     {
@@ -17,21 +17,33 @@ export async function openPosition(
     },
     {
       contractAddress: OBOLUS_PERP_ADDRESS,
-      entrypoint: "open_position",
+      entrypoint: "open_position_sealed",
       calldata: CallData.compile([
-        size.toString(), 
-        leverage.toString(), 
+        ct_size.L,
+        ct_size.R,
+        ct_price.L,
+        ct_price.R,
         collateral.toString()
       ])
     }
   ]);
 }
 
-export async function closePosition(account: Account, positionId: number) {
+export async function closePositionSealed(
+  account: Account,
+  positionId: number,
+  ct_pnl: { L: string, R: string },
+  proof: string[]
+) {
   return account.execute([{
     contractAddress: OBOLUS_PERP_ADDRESS,
-    entrypoint: "close_position",
-    calldata: CallData.compile([positionId.toString()])
+    entrypoint: "close_position_sealed",
+    calldata: CallData.compile([
+      positionId.toString(),
+      ct_pnl.L,
+      ct_pnl.R,
+      proof
+    ])
   }]);
 }
 
@@ -76,8 +88,8 @@ export function calculateLiquidationPrice(
   maintenanceMarginRatio: number = 0.05
 ): number {
   if (isLong) {
-    return entryPrice * (1 - 1/leverage + maintenanceMarginRatio);
+    return entryPrice * (1 - 1 / leverage + maintenanceMarginRatio);
   } else {
-    return entryPrice * (1 + 1/leverage - maintenanceMarginRatio);
+    return entryPrice * (1 + 1 / leverage - maintenanceMarginRatio);
   }
 }

@@ -538,35 +538,8 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
     const currentSelectedAsset = (asset || selectedAsset) as AssetType;
     const now = Date.now();
 
-    // VOLATILITY AMPLIFICATION ENGINE
-    // For stable assets (Forex/Stocks), we amplify the real Pyth delta to make them "game-ready"
-    const getVolatilityMultiplier = (a: AssetType) => {
-      // Forex pairs (Moderate boost for stability)
-      if (['EUR', 'GBP', 'JPY', 'AUD', 'CAD'].includes(a)) return 8.0;
-      // Stocks (Maintain at 8x)
-      if (['AAPL', 'GOOGL', 'AMZN', 'MSFT', 'NVDA', 'TSLA', 'META', 'NFLX'].includes(a)) return 8.0;
-      // Metals (Reduce to 2.5x for smoother movement)
-      if (['GOLD', 'SILVER'].includes(a)) return 2.5;
-      // Crypto (Natural volatility, no boost)
-      return 1.0;
-    };
-
-    const multiplier = getVolatilityMultiplier(currentSelectedAsset);
-    const lastRawPrice = rawAssetPrices[currentSelectedAsset] || price;
-    const rawDelta = price - lastRawPrice;
-
-    // Calculate amplified delta
-    let amplifiedDelta = rawDelta * multiplier;
-
-    // Add micro-jitter (0.0001% - 0.0003%) to make price "vibrate" even when Pyth is slow
-    const jitterSign = Math.random() > 0.5 ? 1 : -1;
-    const jitterAmount = price * (0.00001 + Math.random() * 0.00002) * jitterSign;
-    amplifiedDelta += jitterAmount;
-
-    // The new price to be used in the game state
-    // If it's the first time we see this asset, use raw price
-    const currentVirtualPrice = assetPrices[currentSelectedAsset] || price;
-    const finalPrice = currentVirtualPrice + amplifiedDelta;
+    // Use RAW real-world prices (No amplification for hackathon)
+    const finalPrice = price;
 
     // Update global asset prices
     const updatedAssetPrices = { ...assetPrices, [currentSelectedAsset]: finalPrice };
