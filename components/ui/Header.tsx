@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useStore, useUserTier } from '@/lib/store';
-import { StarknetWalletConnect } from '@/components/wallet';
+import ConnectButton from '@/components/wallet/ConnectButton';
 import { QuickTour } from '@/components/tour/QuickTour';
 import { TierStatusModal } from '@/components/game/TierStatusModal';
 
@@ -104,7 +104,7 @@ export const Header: React.FC = () => {
                         <span className="text-xs sm:text-sm">✨</span>
                         <span className="hidden xs:inline">Tour</span>
                     </button>
-                    <StarknetWalletConnect />
+                    <ConnectButton />
                 </div>
             </header>
 
