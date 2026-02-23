@@ -13,11 +13,12 @@ import { WalletState, createWalletSlice } from "./walletSlice";
 import { GameState, createGameSlice } from "./gameSlice";
 import { HistoryState, createHistorySlice, restoreBetHistory } from "./historySlice";
 import { BalanceState, createBalanceSlice } from "./balanceSlice";
+import { PrivacySlice, createPrivacySlice } from "./privacySlice";
 
 /**
  * Combined store type
  */
-export type OverflowStore = WalletState & GameState & HistoryState & BalanceState;
+export type OverflowStore = WalletState & GameState & HistoryState & BalanceState & PrivacySlice;
 
 /**
  * Create the main Zustand store
@@ -29,7 +30,8 @@ export const useOverflowStore = create<OverflowStore>()(
       ...createWalletSlice(...args),
       ...createGameSlice(...args),
       ...createHistorySlice(...args),
-      ...createBalanceSlice(...args)
+      ...createBalanceSlice(...args),
+      ...createPrivacySlice(...args)
     }),
     {
       name: 'obolus-storage',

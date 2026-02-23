@@ -78,6 +78,13 @@ export const Header: React.FC = () => {
                         >
                             Perp
                         </Link>
+                        <Link
+                            href="/auditor"
+                            className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md transition-all ${pathname === '/auditor' ? 'bg-white/10 text-white' : 'text-neutral-500 hover:text-white'
+                                }`}
+                        >
+                            Auditor
+                        </Link>
                     </div>
                 </div>
 

@@ -28,11 +28,27 @@ export const NETWORKS = {
                 tongo: "0x0426a7b806a884744474d0a517c92dd961120102f7c0b967411d91dc6714be16",
                 rate: 50000000000000000n,
             },
+            WBTC: {
+                symbol: "WBTC",
+                name: "Wrapped Bitcoin",
+                decimals: 8,
+                erc20: "0x03fe2b97c1fd33f07960814c90498525b4ec6fdbf4192d121b1920230232145",
+                tongo: "0x01b826429cfb507586af09c6f5dc44d99043945d7af272141c2e677aab8777ae",
+                rate: 1000n,
+            },
+            LORDS: {
+                symbol: "LORDS",
+                name: "Lords",
+                decimals: 18,
+                erc20: "0x0124aeb495b947267a85e23e6b1d091d4e7ca2a5f1c3d1d2b591b6e4d6fadb32",
+                tongo: "0x037d4de4cd919ccf612b441a76661c3afdc9a990791c4e56a3a0879218053eee",
+                rate: 1000000000000000000n,
+            },
         },
     },
 } as const;
 
-export type TokenSymbol = "ETH" | "USDC" | "STRK";
+export type TokenSymbol = "ETH" | "USDC" | "STRK" | "WBTC" | "LORDS";
 export type TokenConfig = (typeof NETWORKS.devnet.tokens)[TokenSymbol];
 
 export const TONGO_CLASS_HASH = "0x00582609087e5aeb75dc25284cf954e2cee6974568d1b5636052a9d36eec672a";

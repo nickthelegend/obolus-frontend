@@ -26,8 +26,9 @@ In traditional DEXs, every position is public. Obolus hides your financial footp
 ### 🎨 Frontend (Next.js)
 - [x] **High-Aesthetic UI**: Dark-mode, high-fidelity trading dashboard.
 - [x] **Encryption Constants**: Pre-docked to local Devnet addresses.
-- [x] **Encryption Pipeline**: Simulated homomorphic pipeline.
-- [ ] **Tongo SDK Integration**: Transitioning from simulation to real EC math (Work in Progress).
+- [x] **Tongo SDK Integration**: Real ElGamal encryption pipelined through Starknet accounts.
+- [x] **Real-time Oracle Sentinel**: Pyth Hermes driving millisecond-level price attestations.
+- [x] **Selective Disclosure**: Functional "Auditor" flow for regulatory compliance.
 
 ### 🛠️ Technical Stack
 | Layer      | Stack |

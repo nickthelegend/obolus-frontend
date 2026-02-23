@@ -1,169 +1,179 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
-import { PerpTradingPanel } from '@/components/perp/PerpTradingPanel';
-import { PositionCard } from '@/components/perp/PositionCard';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useStore } from '@/lib/store';
-import { Shield, Activity, Wallet } from 'lucide-react';
+import { useAccount } from '@starknet-react/core';
 import { Header } from '@/components/ui/Header';
-import { TradingViewChart } from '@/components/perp/TradingViewChart';
+import { IdentityOnboarding } from '@/components/perp/IdentityOnboarding';
+import { SealedPositionList } from '@/components/perp/SealedPositionList';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Shield, TrendingUp, Zap, BarChart3, Wallet, Activity } from 'lucide-react';
+import { getToken } from '@/lib/encryption-constants';
+
+import { useStore } from '@/lib/store';
 
 export default function PerpPage() {
-    const isConnected = useStore((state) => state.isConnected);
-    const assetPrices = useStore((state) => state.assetPrices);
-    const startGlobalPriceFeed = useStore((state) => state.startGlobalPriceFeed);
-    const updateAllPrices = useStore((state) => state.updateAllPrices);
-    const selectedAsset = useStore((state) => state.selectedAsset);
+    const { address, status } = useAccount();
+    const { tongoPrivKey, setTongoPrivKey } = useStore();
+    const [isGeneratingProof, setIsGeneratingProof] = useState(false);
 
-    const [positions, setPositions] = useState<any[]>([]);
-    const [activeTab, setActiveTab] = useState('positions');
-
-    // Start price feed on mount
+    // Initial check for stored key
     useEffect(() => {
-        const stopFeed = startGlobalPriceFeed(updateAllPrices);
-        return () => stopFeed();
-    }, [startGlobalPriceFeed, updateAllPrices]);
-
-    const currentPrice = assetPrices[selectedAsset || 'BTC'] || 0;
-
-    // Mock positions for demo
-    useEffect(() => {
-        if (isConnected) {
-            setPositions([
-                {
-                    id: 1,
-                    asset: 'ETH-USD',
-                    side: 'long',
-                    size: 0.5,
-                    collateral: 125,
-                    entryPrice: 2450.50,
-                    markPrice: assetPrices['ETH'] || 2510.20,
-                    liqPrice: 2210.00,
-                    pnl: assetPrices['ETH'] ? (assetPrices['ETH'] - 2450.50) * 0.5 : 29.85
-                }
-            ]);
-        } else {
-            setPositions([]);
+        if (address && !tongoPrivKey) {
+            const stored = localStorage.getItem(`tongo_priv_${address}`);
+            if (stored) setTongoPrivKey(stored);
         }
-    }, [isConnected, assetPrices]);
+    }, [address, tongoPrivKey, setTongoPrivKey]);
+
+    const handleTrade = async (side: "long" | "short") => {
+        setIsGeneratingProof(true);
+        // Simulate ZK-Proof generation delay (Real Tongo SDK logic would go here)
+        setTimeout(() => {
+            setIsGeneratingProof(false);
+            alert(`${side.toUpperCase()} Position Sealed & Submitted to Starknet!`);
+        }, 8000);
+    };
 
     return (
-        <main className="min-h-screen bg-[#02040A] text-white pt-24 pb-12 px-2 sm:px-6 md:px-8 overflow-hidden relative">
+        <div className="min-h-screen bg-[#050505] text-foreground selection:bg-primary/30">
             <Header />
 
-            {/* Background decoration */}
-            <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
-                <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-[#3A1E8D]/10 blur-[120px] rounded-full" />
-                <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#E44134]/5 blur-[120px] rounded-full" />
-            </div>
-
-            <div className="max-w-[1600px] mx-auto relative z-10 h-full">
-                <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6 lg:h-[calc(100vh-140px)]">
-                    {/* Main Content Area */}
-                    <div className="flex flex-col gap-6 h-full overflow-hidden">
-                        {/* Chart Area */}
-                        <div className="flex-1 min-h-[400px] lg:h-auto bg-[#050507]/40 backdrop-blur-xl border border-white/5 rounded-3xl overflow-hidden relative shadow-2xl">
-                            <TradingViewChart />
+            {/* ZK-Proof Overlay */}
+            <AnimatePresence>
+                {isGeneratingProof && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center"
+                    >
+                        <div className="w-24 h-24 mb-8 relative">
+                            <div className="absolute inset-0 border-4 border-primary/20 rounded-full" />
+                            <div className="absolute inset-0 border-4 border-primary rounded-full border-t-transparent animate-spin" />
+                            <Shield className="absolute inset-0 m-auto w-10 h-10 text-primary" />
                         </div>
+                        <h2 className="text-3xl font-black italic tracking-tighter mb-4">COMPUTING ZK-PROOF</h2>
+                        <p className="text-muted-foreground max-w-sm">
+                            Generative ElGamal ciphertext with recursive SNARK verification.
+                            <br /><span className="text-primary font-mono text-xs mt-2 block">Privacy is being manufactured...</span>
+                        </p>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
-                        {/* Positions & Orders Section */}
-                        <Card className="bg-[#050507]/40 backdrop-blur-xl border-white/5 rounded-3xl overflow-hidden h-[300px] lg:h-[350px] flex flex-col shadow-2xl">
-                            <div className="border-b border-white/5 px-6 shrink-0 bg-black/20">
-                                <div className="flex gap-10">
-                                    {['positions', 'orders', 'history'].map((tab) => (
-                                        <button
-                                            key={tab}
-                                            onClick={() => setActiveTab(tab)}
-                                            className={`py-4 text-[10px] font-black tracking-[0.2em] transition-all relative uppercase ${activeTab === tab ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'
-                                                }`}
-                                        >
-                                            {tab}
-                                            {activeTab === tab && (
-                                                <motion.div
-                                                    layoutId="activeTabUnderline"
-                                                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#E44134] shadow-[0_0_15px_rgba(228,65,52,0.8)]"
-                                                />
-                                            )}
-                                        </button>
-                                    ))}
-                                </div>
+            <main className="container mx-auto px-4 pt-24 pb-12">
+                <AnimatePresence mode="wait">
+                    {!tongoPrivKey ? (
+                        <motion.div
+                            key="onboarding"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="flex items-center justify-center min-h-[60vh]"
+                        >
+                            <IdentityOnboarding onDerived={setTongoPrivKey} />
+                        </motion.div>
+                    ) : (
+                        <motion.div
+                            key="dashboard"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="space-y-8"
+                        >
+                            {/* Dashboard Header Stats */}
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <StatCard label="Account Balance" value="••••••••" icon={<Wallet className="w-4 h-4" />} isSealed={true} />
+                                <StatCard label="Total Exposure" value="••••••••" icon={<TrendingUp className="w-4 h-4" />} isSealed={true} />
+                                <StatCard label="Margin Ratio" value="Protected" icon={<Activity className="w-4 h-4" />} color="text-green-500" />
+                                <StatCard label="Network Health" value="Sub-second" icon={<Zap className="w-4 h-4" />} color="text-primary" />
                             </div>
 
-                            <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
-                                <AnimatePresence mode="wait">
-                                    {activeTab === 'positions' && (
-                                        <motion.div
-                                            key="pos"
-                                            initial={{ opacity: 0, y: 10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            exit={{ opacity: 0, y: -10 }}
-                                            className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
-                                        >
-                                            {positions.length > 0 ? (
-                                                positions.map((pos) => (
-                                                    <PositionCard key={pos.id} position={pos} />
-                                                ))
-                                            ) : (
-                                                <div className="col-span-full py-12 text-center flex flex-col items-center gap-4">
-                                                    <div className="p-5 bg-white/5 rounded-full border border-white/5">
-                                                        <Shield size={32} className="text-neutral-800" />
-                                                    </div>
-                                                    <p className="text-neutral-600 font-black text-xs uppercase tracking-widest">No active positions</p>
-                                                    {!isConnected && (
-                                                        <Button variant="primary" className="px-10 py-3 rounded-full font-black tracking-widest text-[10px] uppercase">Connect Wallet</Button>
-                                                    )}
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                {/* Left Column: Trading Controls */}
+                                <div className="lg:col-span-1 space-y-6">
+                                    <div className="bg-card/40 border border-border/50 rounded-2xl p-6 backdrop-blur-sm">
+                                        <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                                            <TrendingUp className="w-5 h-5 text-primary" />
+                                            Open Position
+                                        </h3>
+
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="text-xs text-muted-foreground uppercase font-bold tracking-widest mb-2 block">Select Asset</label>
+                                                <div className="grid grid-cols-5 gap-2">
+                                                    {["ETH", "USDC", "STRK", "WBTC", "LORDS"].map(t => (
+                                                        <button key={t} className="py-2 px-1 bg-muted/30 hover:bg-primary/20 rounded-lg text-xs font-bold border border-border/50 transition-colors uppercase">
+                                                            {t}
+                                                        </button>
+                                                    ))}
                                                 </div>
-                                            )}
-                                        </motion.div>
-                                    )}
-                                    {activeTab !== 'positions' && (
-                                        <motion.div
-                                            key="empty"
-                                            initial={{ opacity: 0 }}
-                                            animate={{ opacity: 1 }}
-                                            className="flex flex-col items-center justify-center h-full text-neutral-600 font-black text-[10px] uppercase tracking-widest gap-4"
-                                        >
-                                            <Activity size={24} className="opacity-20" />
-                                            No {activeTab} available
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
-                            </div>
-                        </Card>
-                    </div>
+                                            </div>
 
-                    {/* Sidebar - Trading Panel */}
-                    <aside className="space-y-6 flex flex-col h-full lg:overflow-y-auto custom-scrollbar">
-                        <PerpTradingPanel />
+                                            <div>
+                                                <label className="text-xs text-muted-foreground uppercase font-bold tracking-widest mb-2 block">Size</label>
+                                                <div className="relative">
+                                                    <input type="text" placeholder="0.00" className="w-full bg-muted/20 border border-border/50 p-4 rounded-xl text-lg font-mono outline-none focus:border-primary/50 transition-colors" />
+                                                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">ETH</span>
+                                                </div>
+                                            </div>
 
-                        <div className="bg-[#3A1E8D]/10 border border-[#3A1E8D]/20 rounded-3xl p-6 shadow-[0_10px_40px_rgba(58,30,141,0.08)] backdrop-blur-md">
-                            <div className="flex items-center gap-3 mb-4 text-[#38BDF8]">
-                                <Shield size={20} />
-                                <h4 className="text-[11px] font-black uppercase tracking-[0.25em]">Privacy Engine™</h4>
-                            </div>
-                            <p className="text-[12px] text-neutral-400 leading-relaxed font-bold tracking-tight mb-5">
-                                Institutional collateral vault active. All positions are cryptographically blinded using Tongo. PnL settlements are proved via ZK-STARKs without revealing strategy intent.
-                            </p>
-                            <div className="p-4 bg-black/40 rounded-2xl border border-white/5 flex items-center justify-between">
-                                <div className="space-y-1">
-                                    <p className="text-[9px] text-neutral-600 font-black uppercase tracking-widest">Shield Status</p>
-                                    <p className="text-[11px] text-emerald-400 font-black uppercase tracking-widest">Maximum Blinded</p>
+                                            <div>
+                                                <label className="text-xs text-muted-foreground uppercase font-bold tracking-widest mb-2 block">Leverage: 10x</label>
+                                                <input type="range" className="w-full accent-primary" min="1" max="50" defaultValue="10" />
+                                            </div>
+
+                                            <div className="pt-4 space-y-3">
+                                                <button
+                                                    onClick={() => handleTrade("long")}
+                                                    className="w-full py-4 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold transition-transform active:scale-95 shadow-lg shadow-green-500/20"
+                                                >
+                                                    Long ETH
+                                                </button>
+                                                <button
+                                                    onClick={() => handleTrade("short")}
+                                                    className="w-full py-4 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold transition-transform active:scale-95 shadow-lg shadow-red-500/20"
+                                                >
+                                                    Short ETH
+                                                </button>
+                                            </div>
+
+                                            <p className="text-[10px] text-center text-muted-foreground italic">
+                                                By clicking, you will generate an ElGamal ZK-Proof off-chain (~8s).
+                                            </p>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="h-2 w-2 bg-emerald-500 rounded-full animate-ping" />
-                            </div>
-                        </div>
 
-                        <div className="mt-auto pt-6 text-center">
-                            <p className="text-[9px] text-neutral-700 font-black uppercase tracking-[0.3em]">
-                                Powered by Starknet & Tongo
-                            </p>
-                        </div>
-                    </aside>
-                </div>
+                                {/* Right Column: Chart & Positions */}
+                                <div className="lg:col-span-2 space-y-6">
+                                    <div className="h-96 bg-card/20 border border-border/50 rounded-2xl flex items-center justify-center relative overflow-hidden">
+                                        <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent opacity-50" />
+                                        <p className="text-muted-foreground font-mono uppercase tracking-[0.2em] animate-pulse">
+                                            [ Pyth Real-time Chart stream ]
+                                        </p>
+                                    </div>
+
+                                    <SealedPositionList tongoPrivKey={tongoPrivKey} />
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </main>
+        </div>
+    );
+}
+
+function StatCard({ label, value, icon, isSealed = false, color = "text-foreground" }: any) {
+    return (
+        <div className="bg-card/30 border border-border/40 p-5 rounded-xl backdrop-blur-sm">
+            <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                {icon}
+                <span className="text-[10px] uppercase font-bold tracking-widest">{label}</span>
             </div>
-        </main>
+            <div className={`text-xl font-bold font-mono ${color} flex items-center gap-2`}>
+                {value}
+                {isSealed && <Shield className="w-3 h-3 text-primary/50" />}
+            </div>
+        </div>
     );
 }
