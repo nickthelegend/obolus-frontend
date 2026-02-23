@@ -63,8 +63,8 @@ export const AuditorHeroSection: React.FC = () => {
 
             <div className="relative z-10 text-center w-full max-w-5xl mx-auto flex flex-col items-center justify-center min-h-screen py-8 sm:py-16">
 
-                <div className="mb-8 inline-flex items-center gap-2 px-4 py-2 bg-stark-blue/20 border border-stark-blue/40 rounded-full text-stark-blue text-xs font-bold uppercase tracking-widest text-[#38BDF8] backdrop-blur-md animate-fadeIn">
-                    <Globe className="w-4 h-4 text-[#38BDF8]" /> Audit-Ready Infrastructure
+                <div className="mb-8 inline-flex items-center gap-2 px-4 py-2 bg-[#E44134]/10 border border-[#E44134]/30 rounded-full text-xs font-bold uppercase tracking-widest text-[#E44134] backdrop-blur-md animate-fadeIn">
+                    <Globe className="w-4 h-4 text-[#E44134]" /> Private Orderbook Network
                 </div>
 
                 <h1 className="w-full text-foreground leading-tight tracking-tight mb-8 animate-fadeIn">
