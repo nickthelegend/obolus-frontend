@@ -20,4 +20,4 @@ export async function deriveTongoPrivateKey(starknetAddress: string, signature: 
 /**
  * Hook-ready function to prompt user for a signature to "Unlock Private Trading"
  */
-export const DERIVATION_MESSAGE = "Unlock Obolus Private Trading Identity. This signature will be used to derive your encryption keys.";
+export const DERIVATION_MESSAGE = "Unlock Obolus Identity";
