@@ -490,6 +490,26 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
 
       const data = await response.json();
 
+      // Save to bet history
+      fetch('/api/bets/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: betId,
+          walletAddress: userAddress,
+          asset: position.asset,
+          direction: position.direction,
+          amount: position.amount,
+          multiplier: position.leverage || 1,
+          strikePrice: position.entryPrice || 0,
+          endPrice: get().currentPrice,
+          payout: totalToRefund,
+          won: pnl > 0,
+          mode: 'perp',
+          network: 'STARKNET'
+        })
+      }).catch(err => console.error('Failed to save history:', err));
+
       // Update local state
       set((state: any) => ({
         activeBets: state.activeBets.filter((b: any) => b.id !== betId),

@@ -61,7 +61,7 @@ export function SealedPositionList({ tongoPrivKey }: { tongoPrivKey: string | nu
                                     )}
                                 </div>
                                 <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground font-mono">
-                                    <span className="text-white">{bet.amount.toFixed(2)}</span>
+                                    <span className="text-white">{(bet.amount * (bet.multiplier || 1)).toFixed(2)} USDT</span>
                                     <span>Entry: <span className="text-white">${entryPrice.toFixed(4)}</span></span>
                                 </div>
                             </div>

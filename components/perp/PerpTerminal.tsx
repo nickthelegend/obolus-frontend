@@ -107,9 +107,9 @@ export function PerpTerminal() {
                 console.log("Limit Order Tx:", tx.transaction_hash);
             }
 
-            // Record in Supabase
+            // Record in Supabase using the collateral amount (USDT) so PnL calculations are correct
             await placeBetFromHouseBalance(
-                size,
+                collateralAmount.toFixed(4),
                 `${side === 'long' ? 'UP' : 'DOWN'}-${leverage}`,
                 address,
                 `perp-${Date.now()}`
