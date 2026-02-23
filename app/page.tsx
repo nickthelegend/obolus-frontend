@@ -7,18 +7,12 @@ import { Header } from '@/components/ui/Header';
 import { Shield, Zap, Lock, Globe, ArrowRight, CheckCircle } from 'lucide-react';
 import { CTASection } from '@/components/ui/hero-dithering-card';
 import { InteractiveNebulaShader } from '@/components/ui/liquid-shader';
-import AnoAI from '@/components/ui/animated-shader-background';
-import ShaderAnimation from '@/components/ui/spiral-shader';
+import { AuditorHeroSection } from '@/components/ui/gradient-bar-hero-section';
 
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-stark-orange/30 overflow-x-hidden relative">
       <Header />
-
-      {/* Global Background (Spiral Shader for entire page atmosphere) */}
-      <div className="fixed inset-0 w-full h-full pointer-events-none opacity-20 mix-blend-screen z-0">
-        <ShaderAnimation />
-      </div>
 
       {/* Hero 1: The CTA Section (Dithering Card) */}
       <div className="pt-32 relative z-10 w-full">
@@ -76,69 +70,8 @@ export default function LandingPage() {
       </section>
 
       {/* Hero 3: Zero-Knowledge Compliance */}
-      <section className="py-32 relative min-h-screen flex items-center">
-        {/* Abstract Network Node Background (AnoAI) */}
-        <AnoAI className="opacity-80" />
+      <AuditorHeroSection />
 
-        <div className="container mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center relative z-10">
-          <motion.div
-            initial={{ opacity: 0, x: -50 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
-            className="space-y-8"
-          >
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-stark-blue/30 border border-stark-blue/50 rounded-full text-stark-blue text-[10px] font-bold uppercase tracking-widest text-blue-400">
-              <Globe className="w-3 h-3 text-blue-400" /> Audit-Ready Infrastructure
-            </div>
-            <h2 className="text-5xl font-black tracking-tighter leading-tight">
-              Privacy That <br />
-              <span className="italic font-light text-foreground/80">Plays by the Rules.</span>
-            </h2>
-            <p className="text-xl text-muted-foreground leading-relaxed max-w-xl">
-              Total transparency for compliance, total privacy for trading.
-              Our **Selective Disclosure** portal allows you to share trade proofs
-              with auditors without exposing your master keys.
-            </p>
-            <div className="flex gap-6 pt-4">
-              <div>
-                <div className="text-3xl font-black text-stark-orange mb-1">0.8s</div>
-                <div className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Settlement Time</div>
-              </div>
-              <div className="w-px h-12 bg-white/10" />
-              <div>
-                <div className="text-3xl font-black text-stark-orange mb-1">∞</div>
-                <div className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">Privacy Persistence</div>
-              </div>
-            </div>
-            <Link href="/auditor" className="inline-flex items-center gap-2 text-stark-orange font-bold group mt-8">
-              Explore Auditor Portal <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </Link>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, rotate: 5 }}
-            whileInView={{ opacity: 1, rotate: 0 }}
-            viewport={{ once: true }}
-            className="relative hidden lg:flex justify-end items-center"
-          >
-            <div className="text-right p-8 bg-black/40 backdrop-blur-md border border-white/5 rounded-3xl max-w-sm shadow-2xl relative z-10">
-              <h4 className="font-mono text-stark-orange text-sm mb-4">{"// PROOF_GENERATED"}</h4>
-              <div className="space-y-2 opacity-70">
-                <div className="h-2 w-full bg-white/10 rounded overflow-hidden">
-                  <div className="h-full bg-stark-orange w-1/3 animate-pulse" />
-                </div>
-                <div className="h-2 w-3/4 bg-white/10 rounded" />
-                <div className="h-2 w-5/6 bg-white/10 rounded" />
-                <div className="h-2 w-1/2 bg-white/10 rounded" />
-              </div>
-              <div className="mt-8 pt-4 border-t border-white/10">
-                <span className="text-xs text-muted-foreground">Zero-Knowledge Attestation Valid</span>
-                <CheckCircle className="w-4 h-4 text-green-500 inline ml-2" />
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </section>
 
       {/* Footer / CTA */}
       <section className="py-32 bg-gradient-to-t from-stark-orange/10 to-transparent border-t border-white/5 relative z-10">
