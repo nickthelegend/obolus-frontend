@@ -7,6 +7,7 @@ import { useStore, useUserTier } from '@/lib/store';
 import ConnectButton from '@/components/wallet/ConnectButton';
 import { QuickTour } from '@/components/tour/QuickTour';
 import { TierStatusModal } from '@/components/game/TierStatusModal';
+import { Coins, Loader2 } from 'lucide-react';
 
 export const Header: React.FC = () => {
     const [isTourOpen, setIsTourOpen] = useState(false);
@@ -22,6 +23,9 @@ export const Header: React.FC = () => {
     const setIsConnected = useStore((state) => state.setIsConnected);
     const toggleAccountType = useStore((state) => state.toggleAccountType);
     const accountType = useStore((state) => state.accountType);
+    const requestFaucet = useStore((state) => state.requestFaucet);
+    const address = useStore((state) => state.address);
+    const isLoading = useStore((state) => state.isLoading);
     const userTier = useUserTier();
 
     const tierIcon = userTier === 'vip' ? '⬢' : userTier === 'standard' ? '♢' : '△';
@@ -92,6 +96,14 @@ export const Header: React.FC = () => {
                         >
                             Auditor
                         </Link>
+                        <button
+                            onClick={() => address && requestFaucet(address)}
+                            disabled={!address || isLoading}
+                            className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md transition-all flex items-center gap-2 text-stark-orange hover:bg-stark-orange/10 disabled:opacity-50`}
+                        >
+                            {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Coins className="w-3 h-3" />}
+                            Faucet
+                        </button>
                     </div>
                 </div>
 
