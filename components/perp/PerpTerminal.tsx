@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 export function PerpTerminal() {
     const { address, status } = useAccount();
-    const { tongoPrivKey, currentPrice, selectedAsset, setSelectedAsset, placeBetFromHouseBalance, houseBalance, requestFaucet, isLoading } = useStore();
+    const { tongoPrivKey, currentPrice, selectedAsset, setSelectedAsset, placeBetFromHouseBalance, houseBalance, requestFaucet, isLoading, setGameMode } = useStore();
     const [justClaimed, setJustClaimed] = useState(false);
 
     // Mock USDT Address for demo
@@ -35,6 +35,11 @@ export function PerpTerminal() {
         }
         prevBalance.current = houseBalance;
     }, [houseBalance]);
+
+    // Switch to Perp Mode on Mount
+    useEffect(() => {
+        setGameMode('perp');
+    }, [setGameMode]);
 
     const assets = Object.keys(PRICE_FEED_IDS) as AssetType[];
     const filteredAssets = assets.filter(a => a.toLowerCase().includes(searchQuery.toLowerCase()));

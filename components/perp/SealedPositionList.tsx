@@ -5,6 +5,8 @@ import { useStore } from '@/lib/store';
 export function SealedPositionList({ tongoPrivKey }: { tongoPrivKey: string | null }) {
     const activeBets = useStore(state => state.activeBets);
     const currentPrice = useStore(state => state.currentPrice);
+    const closePerpPosition = useStore(state => state.closePerpPosition);
+    const address = useStore(state => state.address);
 
     if (!tongoPrivKey) return null;
 
@@ -22,13 +24,15 @@ export function SealedPositionList({ tongoPrivKey }: { tongoPrivKey: string | nu
         <div className="flex flex-col gap-2">
             {activeBets.map((bet, i) => {
                 const isLong = bet.direction === 'UP';
-                const entryPrice = bet.strikePrice || 0;
+                const entryPrice = bet.entryPrice || bet.strikePrice || 0;
 
-                // Calculate real-time arbitrary PnL based on current price
-                const priceDiff = currentPrice - entryPrice;
-                const pnlPercentage = entryPrice ? (priceDiff / entryPrice) * bet.multiplier : 0;
-                let rawPnl = bet.amount * pnlPercentage;
-                if (!isLong) rawPnl = -rawPnl; // Reverse if short
+                // Use store-calculated PnL or fall back to local calculation
+                const rawPnl = bet.unrealizedPnL !== undefined ? bet.unrealizedPnL : (() => {
+                    const priceDiff = currentPrice - entryPrice;
+                    const pnlPercentage = entryPrice ? (priceDiff / entryPrice) * bet.multiplier : 0;
+                    let localPnl = bet.amount * pnlPercentage;
+                    return isLong ? localPnl : -localPnl;
+                })();
 
                 const isProfit = rawPnl >= 0;
                 const pnlString = `${isProfit ? '+' : '-'}$${Math.abs(rawPnl).toFixed(2)}`;
@@ -41,7 +45,7 @@ export function SealedPositionList({ tongoPrivKey }: { tongoPrivKey: string | nu
                             </div>
                             <div>
                                 <div className="flex items-center gap-2">
-                                    <span className="font-bold text-sm tracking-tight">{bet.asset}-USD</span>
+                                    <span className="font-bold text-sm tracking-tight">{bet.asset}-USDT</span>
                                     <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-stark-purple/20 text-stark-purple flex items-center gap-1">
                                         <Shield className="w-2 h-2" /> SEALED
                                     </span>
@@ -62,6 +66,14 @@ export function SealedPositionList({ tongoPrivKey }: { tongoPrivKey: string | nu
                                 <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-0.5">Unrealized PnL</p>
                                 <p className={`font-mono text-sm font-bold ${isProfit ? 'text-green-500' : 'text-red-500'}`}>{pnlString}</p>
                             </div>
+                            {bet.mode === 'perp' && (
+                                <button
+                                    onClick={() => address && closePerpPosition(bet.id, address)}
+                                    className="px-3 py-1 bg-white/10 hover:bg-red-500/20 hover:text-red-500 border border-white/10 rounded-md text-[10px] font-black uppercase tracking-widest transition-all"
+                                >
+                                    Close
+                                </button>
+                            )}
                         </div>
                     </div>
                 );

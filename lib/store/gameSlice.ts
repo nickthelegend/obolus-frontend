@@ -12,7 +12,7 @@ import { AssetType } from "@/lib/utils/priceFeed";
 import { playWinSound, playLoseSound } from "@/lib/utils/sounds";
 
 // Game Modes
-export type GameMode = 'binomo' | 'box';
+export type GameMode = 'binomo' | 'box' | 'perp';
 
 // Active bet (Supports both modes)
 export interface ActiveBet {
@@ -27,6 +27,11 @@ export interface ActiveBet {
   // Binomo mode specific
   strikePrice?: number;
   endTime?: number;
+  // Perp specific
+  leverage?: number;
+  entryPrice?: number;
+  unrealizedPnL?: number;
+  liquidated?: boolean;
   // Box mode specific
   cellId?: string;
 }
@@ -73,6 +78,7 @@ export interface GameState {
   setTimeframeSeconds: (seconds: number) => void;
   placeBet: (amount: string, targetId: string) => Promise<void>;
   placeBetFromHouseBalance: (amount: string, targetId: string, userAddress: string, cellId?: string) => Promise<{ betId: string; remainingBalance: number; bet: ActiveBet } | void>;
+  closePerpPosition: (betId: string, userAddress: string) => Promise<void>;
   updatePrice: (price: number, asset?: AssetType) => void;
   updateAllPrices: (prices: Record<string, number>) => void;
   startGlobalPriceFeed: (updateAllPrices: (prices: Record<string, number>) => void) => (() => void);
@@ -295,6 +301,20 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
           priceChange: direction === 'UP' ? 10 : -10,
           direction: direction
         };
+      } else if (gameMode === 'perp' && (targetId.includes('UP-') || targetId.includes('DOWN-'))) {
+        // Perp mode handling
+        const parts = targetId.split('-');
+        direction = parts[0] as 'UP' | 'DOWN';
+        multiplier = parseFloat(parts[1]) || 1; // leverage as multiplier for PnL
+        durationSeconds = 0; // Perp has no end time
+
+        target = {
+          id: targetId,
+          label: `${direction} ${multiplier}x`,
+          multiplier: multiplier,
+          priceChange: 0,
+          direction: direction
+        };
       } else {
         // Find predefined target cell
         const foundTarget = targetCells.find((cell: TargetCell) => cell.id === targetId);
@@ -387,7 +407,7 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
 
       // Update house balance in store immediately
       if (data.remainingBalance !== undefined) {
-        set({ houseBalance: data.remainingBalance });
+        set({ houseBalance: data.remainingBalance } as any);
       }
 
       // Create ActiveBet object
@@ -403,9 +423,13 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
         ...(gameMode === 'binomo' ? {
           strikePrice: currentPrice,
           endTime: Date.now() + (durationSeconds * 1000)
+        } : (gameMode === 'perp' ? {
+          entryPrice: currentPrice,
+          leverage: multiplier,
+          unrealizedPnL: 0
         } : {
           cellId: cellId || targetId
-        })
+        }))
       };
 
 
@@ -430,6 +454,53 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
         error: error instanceof Error ? error.message : "Failed to place bet"
       });
       throw error;
+    }
+  },
+
+  /**
+   * Close an open Perp position
+   */
+  closePerpPosition: async (betId: string, userAddress: string) => {
+    const { activeBets, updateBalance } = get();
+    const houseBalance = (get() as any).houseBalance;
+    const position = activeBets.find((b: ActiveBet) => b.id === betId);
+
+    if (!position || position.mode !== 'perp') return;
+
+    try {
+      const pnl = position.unrealizedPnL || 0;
+      const totalToRefund = position.amount + pnl;
+
+      set({ isSettling: true });
+
+      // Call API to process the settlement
+      const response = await fetch('/api/balance/win', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress,
+          winAmount: totalToRefund,
+          betId: betId
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to settle perp position");
+      }
+
+      const data = await response.json();
+
+      // Update local state
+      set((state: any) => ({
+        activeBets: state.activeBets.filter((b: any) => b.id !== betId),
+        settledBets: [{ ...position, status: 'settled', unrealizedPnL: pnl }, ...state.settledBets].slice(0, 50),
+        houseBalance: data.newBalance || (state.houseBalance + totalToRefund),
+        isSettling: false
+      }));
+
+    } catch (error) {
+      console.error("Error closing perp position:", error);
+      set({ isSettling: false, error: "Failed to close position" });
     }
   },
 
@@ -585,7 +656,7 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
             if (response.ok) {
               const data = await response.json();
               if (data.success && data.newBalance !== undefined) {
-                set({ houseBalance: data.newBalance });
+                set({ houseBalance: data.newBalance } as any);
               }
             } else {
               console.error('Failed to credit winnings');
@@ -594,6 +665,24 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
         } else if (isDemoMode && won) {
           // Demo mode - update local balance
           updateBalance(payout, 'add');
+        }
+      }
+
+      // Unrealized PnL calculation for Perp positions
+      if (bet.mode === 'perp' && betAsset === currentSelectedAsset && bet.entryPrice && bet.status === 'active') {
+        const priceDiff = finalPrice - bet.entryPrice;
+        const priceChangePercent = priceDiff / bet.entryPrice;
+        const pnl = bet.amount * priceChangePercent * (bet.leverage || 1) * (bet.direction === 'UP' ? 1 : -1);
+
+        // Update the bet in the state (optimistic update for UI)
+        set((state: GameState) => ({
+          activeBets: state.activeBets.map(b => b.id === bet.id ? { ...b, unrealizedPnL: pnl } : b)
+        }));
+
+        // Simple Liquidation Check
+        if (pnl <= -bet.amount * 0.95) { // 95% loss = liquidation
+          resolveBet(bet.id, false, 0);
+          playLoseSound();
         }
       }
     });
