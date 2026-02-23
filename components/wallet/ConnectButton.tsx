@@ -20,14 +20,17 @@ export default function ConnectButton() {
 
     // Connect/Disconnect sync with store
     useEffect(() => {
+        console.log("ConnectButton Account State:", { isConnected, address, isConnecting });
         if (isConnected && address) {
+            console.log("Syncing address to store:", address);
             setAddress(address);
             setIsConnected(true);
-        } else {
+        } else if (!isConnecting) {
+            console.log("Not connected - clearing store address");
             setAddress(null);
             setIsConnected(false);
         }
-    }, [isConnected, address, setAddress, setIsConnected]);
+    }, [isConnected, address, isConnecting, setAddress, setIsConnected]);
 
     // Close dropdown on outside click
     useEffect(() => {

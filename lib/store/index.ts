@@ -41,7 +41,6 @@ export const useOverflowStore = create<OverflowStore>()(
         address: state.address,
         isConnected: state.isConnected,
         userTier: state.userTier,
-        preferredNetwork: state.preferredNetwork,
       }),
     }
   )
@@ -126,8 +125,7 @@ export const useStore = useOverflowStore;
 export const useWalletActions = () => {
   const connect = useOverflowStore(state => state.connect);
   const disconnect = useOverflowStore(state => state.disconnect);
-  const refreshWalletBalance = useOverflowStore(state => state.refreshWalletBalance);
-  return { connect, disconnect, refreshWalletBalance };
+  return { connect, disconnect };
 };
 
 export const useGameActions = () => {

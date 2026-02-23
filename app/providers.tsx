@@ -57,8 +57,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <StarknetConfig
-      chains={[mainnet, sepolia]}
-      provider={jsonRpcProvider({ rpc: () => ({ nodeUrl: "https://starknet-mainnet.public.blastapi.io/rpc/v0_7" }) })}
+      chains={[sepolia]}
+      provider={jsonRpcProvider({ rpc: () => ({ nodeUrl: "http://localhost:5050" }) })}
       connectors={connectors}
     >
       <QueryClientProvider client={queryClient}>
