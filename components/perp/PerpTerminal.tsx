@@ -57,6 +57,12 @@ export function PerpTerminal() {
             const collateralAmount = parseFloat(size) * currentPrice / leverage;
             const collateralBaseUnits = BigInt(Math.floor(collateralAmount * 1e6)); // 6 decimals for USDT
 
+            if (collateralAmount > houseBalance) {
+                alert(`Insufficient USDT. Required: ${collateralAmount.toFixed(2)} USDT, Available: ${houseBalance.toFixed(2)} USDT`);
+                setIsPlacing(false);
+                return;
+            }
+
             if (orderType === 'market') {
                 // MARKET ORDER: Open Position directly on Perp Contract
                 const tx = await account.execute([
@@ -108,8 +114,11 @@ export function PerpTerminal() {
                 address,
                 `perp-${Date.now()}`
             );
+
+            alert(`Trade Executed!\nType: ${orderType.toUpperCase()}\nSize: ${size} @ ${leverage}x`);
         } catch (error) {
             console.error(error);
+            alert("Trade Failed: " + (error as any).message);
         } finally {
             setIsPlacing(false);
             setSize('');
@@ -138,6 +147,7 @@ export function PerpTerminal() {
                 calldata: []
             });
             console.log("STEP 2: Faucet Tx confirmed!", tx.transaction_hash);
+            alert(`Faucet Tx Confirmed!\nTx Hash: ${tx.transaction_hash}\nAdding 1000 USDT to your DEVNET wallet.`);
 
             // Sync with local balance store
             console.log("STEP 3: Syncing with store...");
@@ -145,6 +155,7 @@ export function PerpTerminal() {
             console.log("STEP 4: Sync complete");
         } catch (error) {
             console.error("FAUCET ERROR:", error);
+            alert("Faucet failed: " + (error as any).message);
         } finally {
             setIsPlacing(false);
             console.log("handleFaucet finished");
@@ -436,18 +447,47 @@ export function PerpTerminal() {
                             <div className="flex justify-between items-center mb-2">
                                 <label className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Order Size</label>
                                 <span className="text-[10px] text-muted-foreground font-mono">
-                                    Max: {currentPrice > 0 ? ((houseBalance * leverage) / currentPrice).toFixed(2) : '0.00'} {selectedAsset}
+                                    Max: {currentPrice > 0 ? ((houseBalance * leverage) / currentPrice).toFixed(4) : '0.00'} {selectedAsset}
                                 </span>
                             </div>
-                            <div className="relative group">
+                            <div className="relative group mb-3">
                                 <input
-                                    type="text"
+                                    type="number"
                                     placeholder="0.00"
                                     value={size}
                                     onChange={(e) => setSize(e.target.value)}
                                     className="w-full bg-black/40 border border-white/10 p-3 rounded-lg text-lg font-mono text-white outline-none focus:border-stark-orange/50 transition-colors group-hover:border-white/20"
                                 />
                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground uppercase">{selectedAsset}</span>
+                            </div>
+
+                            {/* Size Slider */}
+                            <div className="space-y-1 mb-4">
+                                <input
+                                    type="range"
+                                    min="0"
+                                    max="100"
+                                    value={
+                                        currentPrice > 0 && size ?
+                                            Math.min(100, Math.round((Number(size) / ((houseBalance * leverage) / currentPrice)) * 100)) || 0
+                                            : 0
+                                    }
+                                    onChange={(e) => {
+                                        if (currentPrice > 0) {
+                                            const percentage = Number(e.target.value);
+                                            const maxSize = (houseBalance * leverage) / currentPrice;
+                                            const calculatedSize = (maxSize * (percentage / 100)).toFixed(4);
+                                            setSize(percentage === 0 ? '' : calculatedSize);
+                                        }
+                                    }}
+                                    className="w-full accent-stark-orange h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                                />
+                                <div className="flex justify-between items-center px-1 text-[9px] text-muted-foreground font-bold tracking-widest">
+                                    <span className="hover:text-white cursor-pointer transition-colors" onClick={() => currentPrice > 0 && setSize(((houseBalance * leverage * 0.25) / currentPrice).toFixed(4))}>25%</span>
+                                    <span className="hover:text-white cursor-pointer transition-colors" onClick={() => currentPrice > 0 && setSize(((houseBalance * leverage * 0.5) / currentPrice).toFixed(4))}>50%</span>
+                                    <span className="hover:text-white cursor-pointer transition-colors" onClick={() => currentPrice > 0 && setSize(((houseBalance * leverage * 0.75) / currentPrice).toFixed(4))}>75%</span>
+                                    <span className="hover:text-stark-orange cursor-pointer transition-colors" onClick={() => currentPrice > 0 && setSize(((houseBalance * leverage) / currentPrice).toFixed(4))}>100%</span>
+                                </div>
                             </div>
                         </div>
 
@@ -461,8 +501,18 @@ export function PerpTerminal() {
                                 min="1"
                                 max="50"
                                 value={leverage}
-                                onChange={(e) => setLeverage(Number(e.target.value))}
-                                className="w-full accent-stark-purple"
+                                onChange={(e) => {
+                                    const newLeverage = Number(e.target.value);
+                                    setLeverage(newLeverage);
+                                    // Optionally recalculate size if it exceeds new max
+                                    if (currentPrice > 0 && size) {
+                                        const newMaxSize = (houseBalance * newLeverage) / currentPrice;
+                                        if (Number(size) > newMaxSize) {
+                                            setSize(newMaxSize.toFixed(4));
+                                        }
+                                    }
+                                }}
+                                className="w-full accent-stark-purple h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
                             />
                             <div className="flex justify-between mt-1 px-1">
                                 <span className="text-[8px] text-muted-foreground">1x</span>

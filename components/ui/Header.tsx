@@ -97,7 +97,15 @@ export const Header: React.FC = () => {
                             Auditor
                         </Link>
                         <button
-                            onClick={() => address && requestFaucet(address)}
+                            onClick={async () => {
+                                if (!address) return;
+                                try {
+                                    await requestFaucet(address);
+                                    alert("Faucet Request Sent! Local system balance updated. (Note: This is an off-chain simulation, use the terminal Faucet for real devnet tokens.)");
+                                } catch (e) {
+                                    alert("Faucet update failed");
+                                }
+                            }}
                             disabled={!address || isLoading}
                             className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md transition-all flex items-center gap-2 text-stark-orange hover:bg-stark-orange/10 disabled:opacity-50`}
                         >
