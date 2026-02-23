@@ -1,10 +1,50 @@
-import { Account, ProviderInterface, CallData } from "starknet";
+import { AccountInterface, ProviderInterface, CallData } from "starknet";
 
 const OBOLUS_PERP_ADDRESS = process.env.NEXT_PUBLIC_PERP_CONTRACT || "";
 const ORACLE_ADDRESS = process.env.NEXT_PUBLIC_ORACLE_CONTRACT || "";
+const ORDERBOOK_ADDRESS = process.env.NEXT_PUBLIC_ORDERBOOK_CONTRACT || "";
+
+export async function placeOrderSealed(
+  account: AccountInterface,
+  side: number, // 0 for BUY, 1 for SELL
+  ct_price: { L: string, R: string },
+  ct_amount: { L: string, R: string },
+) {
+  return account.execute([{
+    contractAddress: ORDERBOOK_ADDRESS,
+    entrypoint: "place_order",
+    calldata: CallData.compile([
+      side.toString(),
+      ct_price.L,
+      ct_price.R,
+      ct_amount.L,
+      ct_amount.R
+    ])
+  }]);
+}
+
+export async function matchOrdersSealed(
+  account: AccountInterface,
+  buyOrderId: number,
+  sellOrderId: number,
+  ct_settlement: { L: string, R: string },
+  proof: string[]
+) {
+  return account.execute([{
+    contractAddress: ORDERBOOK_ADDRESS,
+    entrypoint: "match_orders",
+    calldata: CallData.compile([
+      buyOrderId.toString(),
+      sellOrderId.toString(),
+      ct_settlement.L,
+      ct_settlement.R,
+      proof
+    ])
+  }]);
+}
 
 export async function openPositionSealed(
-  account: Account,
+  account: AccountInterface,
   ct_size: { L: string, R: string },
   ct_price: { L: string, R: string },
   collateral: bigint,
@@ -30,7 +70,7 @@ export async function openPositionSealed(
 }
 
 export async function closePositionSealed(
-  account: Account,
+  account: AccountInterface,
   positionId: number,
   ct_pnl: { L: string, R: string },
   proof: string[]
@@ -44,6 +84,17 @@ export async function closePositionSealed(
       ct_pnl.R,
       proof
     ])
+  }]);
+}
+
+export async function liquidatePosition(
+  account: AccountInterface,
+  positionId: number
+) {
+  return account.execute([{
+    contractAddress: OBOLUS_PERP_ADDRESS,
+    entrypoint: "liquidate_position",
+    calldata: CallData.compile([positionId.toString()])
   }]);
 }
 

@@ -1,8 +1,12 @@
 import React from 'react';
-import { Shield, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Shield, ArrowUpRight, ArrowDownRight, AlertTriangle } from 'lucide-react';
 import { useStore } from '@/lib/store';
+import { liquidatePosition } from '@/lib/perp';
+
+import { useAccount } from '@starknet-react/core';
 
 export function SealedPositionList({ tongoPrivKey }: { tongoPrivKey: string | null }) {
+    const { account } = useAccount();
     const activeBets = useStore(state => state.activeBets);
     const currentPrice = useStore(state => state.currentPrice);
     const closePerpPosition = useStore(state => state.closePerpPosition);
@@ -34,11 +38,12 @@ export function SealedPositionList({ tongoPrivKey }: { tongoPrivKey: string | nu
                     return isLong ? localPnl : -localPnl;
                 })();
 
+                const isLiquidatable = rawPnl <= -bet.amount * 0.9; // 90% loss
                 const isProfit = rawPnl >= 0;
                 const pnlString = `${isProfit ? '+' : '-'}$${Math.abs(rawPnl).toFixed(2)}`;
 
                 return (
-                    <div key={bet.id || i} className="flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 border border-white/5 rounded-lg transition-colors group">
+                    <div key={bet.id || i} className={`flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 border rounded-lg transition-colors group ${isLiquidatable ? 'border-red-500/50 bg-red-500/5' : 'border-white/5'}`}>
                         <div className="flex items-center gap-4">
                             <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isLong ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>
                                 {isLong ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
@@ -49,6 +54,11 @@ export function SealedPositionList({ tongoPrivKey }: { tongoPrivKey: string | nu
                                     <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-stark-purple/20 text-stark-purple flex items-center gap-1">
                                         <Shield className="w-2 h-2" /> SEALED
                                     </span>
+                                    {isLiquidatable && (
+                                        <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-red-500/20 text-red-500 animate-pulse flex items-center gap-1">
+                                            <AlertTriangle className="w-2 h-2" /> RECT
+                                        </span>
+                                    )}
                                 </div>
                                 <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground font-mono">
                                     <span className="text-white">{bet.amount.toFixed(2)}</span>
@@ -66,14 +76,29 @@ export function SealedPositionList({ tongoPrivKey }: { tongoPrivKey: string | nu
                                 <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-0.5">Unrealized PnL</p>
                                 <p className={`font-mono text-sm font-bold ${isProfit ? 'text-green-500' : 'text-red-500'}`}>{pnlString}</p>
                             </div>
-                            {bet.mode === 'perp' && (
-                                <button
-                                    onClick={() => address && closePerpPosition(bet.id, address)}
-                                    className="px-3 py-1 bg-white/10 hover:bg-red-500/20 hover:text-red-500 border border-white/10 rounded-md text-[10px] font-black uppercase tracking-widest transition-all"
-                                >
-                                    Close
-                                </button>
-                            )}
+                            <div className="flex gap-2">
+                                {isLiquidatable && account && (
+                                    <button
+                                        onClick={async () => {
+                                            if (account) {
+                                                const tx = await liquidatePosition(account, 1); // For demo, assume first position
+                                                console.log("Liquidation Tx:", tx.transaction_hash);
+                                            }
+                                        }}
+                                        className="px-3 py-1 bg-red-500/20 text-red-500 border border-red-500/30 rounded-md text-[10px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all shadow-[0_0_10px_rgba(239,68,68,0.3)]"
+                                    >
+                                        Liquidate
+                                    </button>
+                                )}
+                                {bet.mode === 'perp' && (
+                                    <button
+                                        onClick={() => address && closePerpPosition(bet.id, address)}
+                                        className="px-3 py-1 bg-white/10 hover:bg-red-500/20 hover:text-red-500 border border-white/10 rounded-md text-[10px] font-black uppercase tracking-widest transition-all"
+                                    >
+                                        Close
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
                 );

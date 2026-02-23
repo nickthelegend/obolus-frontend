@@ -25,6 +25,9 @@ export function PerpTerminal() {
     const [isPlacing, setIsPlacing] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
+    const [limitPrice, setLimitPrice] = useState('');
+    const [activeTab, setActiveTab] = useState<'positions' | 'orders' | 'history'>('positions');
     const [isSurging, setIsSurging] = useState(false);
     const prevBalance = useRef(houseBalance);
 
@@ -54,35 +57,51 @@ export function PerpTerminal() {
             const collateralAmount = parseFloat(size) * currentPrice / leverage;
             const collateralBaseUnits = BigInt(Math.floor(collateralAmount * 1e6)); // 6 decimals for USDT
 
-            // REAL CONTRACT CALL: Open Position
-            // In devnet, we use placeholder ciphertexts for Tongo to demo the call flow
-            const tx = await account.execute([
-                {
-                    contractAddress: USDT_ADDRESS,
-                    entrypoint: "approve",
-                    calldata: CallData.compile([process.env.NEXT_PUBLIC_PERP_CONTRACT!, collateralBaseUnits.toString(), "0"])
-                },
-                {
-                    contractAddress: process.env.NEXT_PUBLIC_PERP_CONTRACT!,
-                    entrypoint: "deposit_collateral",
-                    calldata: CallData.compile([collateralBaseUnits.toString()])
-                },
-                {
-                    contractAddress: process.env.NEXT_PUBLIC_PERP_CONTRACT!,
-                    entrypoint: "open_position_sealed",
-                    calldata: CallData.compile([
-                        "0x123", // ct_size_L (placeholder)
-                        "0x456", // ct_size_R (placeholder)
-                        "0x789", // ct_price_L (placeholder)
-                        "0xabc", // ct_price_R (placeholder)
-                        collateralBaseUnits.toString()
-                    ])
-                }
-            ]);
+            if (orderType === 'market') {
+                // MARKET ORDER: Open Position directly on Perp Contract
+                const tx = await account.execute([
+                    {
+                        contractAddress: USDT_ADDRESS,
+                        entrypoint: "approve",
+                        calldata: CallData.compile([process.env.NEXT_PUBLIC_PERP_CONTRACT!, collateralBaseUnits.toString(), "0"])
+                    },
+                    {
+                        contractAddress: process.env.NEXT_PUBLIC_PERP_CONTRACT!,
+                        entrypoint: "deposit_collateral",
+                        calldata: CallData.compile([collateralBaseUnits.toString()])
+                    },
+                    {
+                        contractAddress: process.env.NEXT_PUBLIC_PERP_CONTRACT!,
+                        entrypoint: "open_position_sealed",
+                        calldata: CallData.compile([
+                            "0x123", // ct_size_L (placeholder)
+                            "0x456", // ct_size_R (placeholder)
+                            "0x789", // ct_price_L (placeholder)
+                            "0xabc", // ct_price_R (placeholder)
+                            collateralBaseUnits.toString()
+                        ])
+                    }
+                ]);
+                console.log("Market Trade Tx:", tx.transaction_hash);
+            } else {
+                // LIMIT ORDER: Place Order in SealedOrderbook Contract
+                const tx = await account.execute([
+                    {
+                        contractAddress: process.env.NEXT_PUBLIC_ORDERBOOK_CONTRACT!,
+                        entrypoint: "place_order",
+                        calldata: CallData.compile([
+                            side === 'long' ? "0" : "1", // 0=BUY, 1=SELL
+                            "0xabc", // ct_price_L (placeholder)
+                            "0xdef", // ct_price_R (placeholder)
+                            "0x123", // ct_size_L (placeholder)
+                            "0x456"  // ct_size_R (placeholder)
+                        ])
+                    }
+                ]);
+                console.log("Limit Order Tx:", tx.transaction_hash);
+            }
 
-            console.log("Real Trade Tx:", tx.transaction_hash);
-
-            // Also record in Supabase for history UI
+            // Record in Supabase
             await placeBetFromHouseBalance(
                 size,
                 `${side === 'long' ? 'UP' : 'DOWN'}-${leverage}`,
@@ -227,18 +246,59 @@ export function PerpTerminal() {
                 {/* Bottom Positions Area */}
                 <div className="h-72 bg-card/40 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden flex flex-col shrink-0">
                     <div className="flex gap-1 p-2 bg-black/40 border-b border-white/5 shrink-0">
-                        <button className="px-6 py-2 bg-white/10 text-white rounded-lg text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                        <button
+                            onClick={() => setActiveTab('positions')}
+                            className={`px-6 py-2 rounded-lg text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-all ${activeTab === 'positions' ? 'bg-white/10 text-white' : 'text-muted-foreground hover:bg-white/5'}`}
+                        >
                             Positions <span className="bg-stark-purple px-1.5 py-0.5 rounded text-[10px]">1</span>
                         </button>
-                        <button className="px-6 py-2 text-muted-foreground hover:bg-white/5 rounded-lg text-xs font-bold uppercase tracking-widest transition-colors">
+                        <button
+                            onClick={() => setActiveTab('orders')}
+                            className={`px-6 py-2 rounded-lg text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-all ${activeTab === 'orders' ? 'bg-white/10 text-white' : 'text-muted-foreground hover:bg-white/5'}`}
+                        >
                             Orders
                         </button>
-                        <button className="px-6 py-2 text-muted-foreground hover:bg-white/5 rounded-lg text-xs font-bold uppercase tracking-widest transition-colors">
+                        <button
+                            onClick={() => setActiveTab('history')}
+                            className={`px-6 py-2 rounded-lg text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-all ${activeTab === 'history' ? 'bg-white/10 text-white' : 'text-muted-foreground hover:bg-white/5'}`}
+                        >
                             History
                         </button>
                     </div>
                     <div className="flex-1 overflow-auto p-4 custom-scrollbar">
-                        <SealedPositionList tongoPrivKey={tongoPrivKey} />
+                        {activeTab === 'positions' ? (
+                            <SealedPositionList tongoPrivKey={tongoPrivKey} />
+                        ) : activeTab === 'orders' ? (
+                            <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
+                                <div className="p-4 bg-stark-purple/10 border border-stark-purple/20 rounded-xl max-w-sm">
+                                    <Shield className="w-8 h-8 text-stark-purple mx-auto mb-3" />
+                                    <h3 className="text-sm font-bold uppercase tracking-widest mb-1">Sealed Orderbook</h3>
+                                    <p className="text-[10px] text-muted-foreground leading-relaxed">
+                                        Your orders are encrypted. Only the designated
+                                        Matcher can see compatible crosses.
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={async () => {
+                                        if (account) {
+                                            const tx = await account.execute({
+                                                contractAddress: process.env.NEXT_PUBLIC_ORDERBOOK_CONTRACT!,
+                                                entrypoint: "match_orders",
+                                                calldata: CallData.compile(["1", "2", "0xabc", "0xdef", ["0x123"]])
+                                            });
+                                            console.log("Matcher Triggered:", tx.transaction_hash);
+                                        }
+                                    }}
+                                    className="px-6 py-2 bg-stark-purple/20 hover:bg-stark-purple text-stark-purple hover:text-white border border-stark-purple/40 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all"
+                                >
+                                    Run Matcher Service
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center p-8 text-muted-foreground">
+                                <p className="text-sm font-medium tracking-widest uppercase">No Settlement History</p>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -322,13 +382,42 @@ export function PerpTerminal() {
                     {/* Order Controls */}
                     <div className="space-y-4">
                         <div className="flex gap-2 p-1 bg-black/40 rounded-lg border border-white/5">
-                            <button className="flex-1 py-1.5 bg-stark-orange/20 border border-stark-orange/40 text-stark-orange rounded shadow-sm text-xs font-bold uppercase">
+                            <button
+                                onClick={() => setOrderType('market')}
+                                className={`flex-1 py-1.5 rounded shadow-sm text-xs font-bold uppercase transition-all ${orderType === 'market' ? 'bg-stark-orange/20 border border-stark-orange/40 text-stark-orange' : 'text-muted-foreground hover:text-white'}`}
+                            >
                                 Market
                             </button>
-                            <button className="flex-1 py-1.5 text-muted-foreground hover:text-white rounded text-xs font-bold uppercase transition-colors">
+                            <button
+                                onClick={() => setOrderType('limit')}
+                                className={`flex-1 py-1.5 rounded text-xs font-bold uppercase transition-all ${orderType === 'limit' ? 'bg-stark-purple/20 border border-stark-purple/40 text-stark-purple' : 'text-muted-foreground hover:text-white'}`}
+                            >
                                 Limit
                             </button>
                         </div>
+
+                        {orderType === 'limit' && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                className="space-y-2"
+                            >
+                                <div className="flex justify-between items-center mb-1">
+                                    <label className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Limit Price</label>
+                                    <span className="text-[10px] text-stark-purple animate-pulse">ENCRYPTED</span>
+                                </div>
+                                <div className="relative group">
+                                    <input
+                                        type="text"
+                                        placeholder={currentPrice.toFixed(2)}
+                                        value={limitPrice}
+                                        onChange={(e) => setLimitPrice(e.target.value)}
+                                        className="w-full bg-black/40 border border-stark-purple/20 p-3 rounded-lg text-lg font-mono text-white outline-none focus:border-stark-purple/50 transition-colors"
+                                    />
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground uppercase">USDT</span>
+                                </div>
+                            </motion.div>
+                        )}
 
                         <div>
                             <div className="flex justify-between items-center mb-2">
