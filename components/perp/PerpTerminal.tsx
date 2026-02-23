@@ -58,6 +58,11 @@ export function PerpTerminal() {
             // In devnet, we use placeholder ciphertexts for Tongo to demo the call flow
             const tx = await account.execute([
                 {
+                    contractAddress: USDT_ADDRESS,
+                    entrypoint: "approve",
+                    calldata: CallData.compile([process.env.NEXT_PUBLIC_PERP_CONTRACT!, collateralBaseUnits.toString(), "0"])
+                },
+                {
                     contractAddress: process.env.NEXT_PUBLIC_PERP_CONTRACT!,
                     entrypoint: "deposit_collateral",
                     calldata: CallData.compile([collateralBaseUnits.toString()])
