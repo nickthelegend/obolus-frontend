@@ -13,15 +13,15 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl) {
-  throw new Error('Missing environment variable: NEXT_PUBLIC_SUPABASE_URL');
+  console.error('Missing environment variable: NEXT_PUBLIC_SUPABASE_URL');
 }
 
 if (!supabaseAnonKey) {
-  throw new Error('Missing environment variable: NEXT_PUBLIC_SUPABASE_ANON_KEY');
+  console.error('Missing environment variable: NEXT_PUBLIC_SUPABASE_ANON_KEY');
 }
 
 // Create and export Supabase client (Client-side / Anon)
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
   auth: {
     persistSession: false, // We don't need session persistence for this use case
   },
@@ -30,7 +30,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 // Create and export Admin Supabase client (Server-side / Service Role)
 // Only available on server where SUPABASE_SERVICE_ROLE_KEY is defined
 export const supabaseAdmin = supabaseServiceKey
-  ? createClient(supabaseUrl, supabaseServiceKey, {
+  ? createClient(supabaseUrl || '', supabaseServiceKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,

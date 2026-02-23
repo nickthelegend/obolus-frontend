@@ -16,7 +16,7 @@ export function PerpTerminal() {
     const [justClaimed, setJustClaimed] = useState(false);
 
     // Real USDT Address from ENV
-    const USDT_ADDRESS = process.env.NEXT_PUBLIC_USDT_CONTRACT || "0x03aa8782bedaa9c24fda11672b5c9280306d66cec5b9a4955e6226e9b633b63e";
+    const USDT_ADDRESS = process.env.NEXT_PUBLIC_USDT_CONTRACT || "0x03df0e21f32b9a27b373275cd85e6349e92d1b69a03e87ddc15865a4cfb900b2";
 
     // UI State
     const [leverage, setLeverage] = useState(10);
@@ -118,23 +118,36 @@ export function PerpTerminal() {
 
     // REAL SMART CONTRACT FAUCET
     const handleFaucet = async () => {
-        if (!address || !account) return;
+        console.log("handleFaucet clicked", {
+            address,
+            hasAccount: !!account,
+            USDT_ADDRESS
+        });
+
+        if (!address || !account) {
+            console.warn("Missing address or account - cannot invoke faucet");
+            return;
+        }
 
         try {
             setIsPlacing(true);
+            console.log("STEP 1: Invoking on-chain faucet...");
             const tx = await account.execute({
                 contractAddress: USDT_ADDRESS,
                 entrypoint: "faucet",
                 calldata: []
             });
-            console.log("Faucet Tx:", tx.transaction_hash);
+            console.log("STEP 2: Faucet Tx confirmed!", tx.transaction_hash);
 
             // Sync with local balance store
+            console.log("STEP 3: Syncing with store...");
             await requestFaucet(address);
+            console.log("STEP 4: Sync complete");
         } catch (error) {
-            console.error("Faucet failed:", error);
+            console.error("FAUCET ERROR:", error);
         } finally {
             setIsPlacing(false);
+            console.log("handleFaucet finished");
         }
     };
 
