@@ -69,6 +69,13 @@ export const Header: React.FC = () => {
                             className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md transition-all ${pathname === '/' ? 'bg-white/10 text-white' : 'text-neutral-500 hover:text-white'
                                 }`}
                         >
+                            Home
+                        </Link>
+                        <Link
+                            href="/options"
+                            className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md transition-all ${pathname === '/options' ? 'bg-white/10 text-white' : 'text-neutral-500 hover:text-white'
+                                }`}
+                        >
                             Options
                         </Link>
                         <Link
