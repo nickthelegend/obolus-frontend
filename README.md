@@ -1,70 +1,68 @@
-# ☘️ Obolus
+# ☘️ Obolus :: Private Perpetual DEX
 
-**The first sub-second price prediction market on Starknet.**
+**The first sub-second, privacy-preserving Perpetual DEX on Starknet.**
 
-Powered by **Starknet** + **Pyth Hermes** price attestations + **Off-chain state (Supabase)**.
-
-Simply put: *Trade binary options with oracle-bound resolution and minimal trust, built for the speed of modern Web3.*
+Powered by **Starknet** + **Tongo (ElGamal Encryption)** + **Pyth Hermes**.
 
 ---
 
-## Why Obolus?
-
-Binary options trading in Web3 is often slow or opaque. Obolus leverages Starknet's high-performance infrastructure to deliver an experience that rivals Web2 platforms but with the transparency of the blockchain.
-
-- **Sub-second oracles.** Every tick is backed by Pyth oracles.
-- **Predict in Real-time.** Trade on live charts with instant settlement.
-- **Starknet Powered.** Leveraging the scalability of ZK-rollups for secure and fast operations.
+## 🛡️ Privacy as a Feature
+In traditional DEXs, every position is public. Obolus hides your financial footprint using **ElGamal Homomorphic Encryption**:
+- **Sealed Positions**: Your position size, entry price, and leverage are stored as ciphertexts.
+- **Encrypted Collateral**: Your balance is hidden from on-chain observers.
+- **Viewing Keys**: Selective disclosure for regulatory compliance and auditing.
 
 ---
 
-## What You Get
+## 🚀 Implementation Status (Hackathon Build)
 
-- **Real-time resolution** — Pyth Hermes drives millisecond-level price attestations.
-- **20+ markets** — Crypto (BTC, ETH, STRK, SOL, …), stocks (AAPL, NVDA, TSLA), metals (Gold, Silver), forex (EUR, GBP, JPY).
-- **Starknet Native** — Supports Argent and Braavos wallets out of the box.
-- **Two modes** — **Classic**: UP/DOWN + expiry. **Box**: Tap tiles with multipliers.
-- **Settlement in <1ms** — Off-chain engine + oracle-bound resolution.
+### ⛓️ Smart Contracts (Cairo 2.0)
+- [x] **ObolusPerp**: Sealed perpetual engine using ElGamal position storage.
+- [x] **ObolusCollateral**: Encrypted account balances with homomorphic logic support.
+- [x] **ViewingKey**: Selective disclosure system for private data.
+- [x] **ObolusOracle**: On-chain price feed for settlement.
+- [x] **ObolusPool**: Privacy-preserving AMM (ShadowPool fork).
 
----
+### 🎨 Frontend (Next.js)
+- [x] **High-Aesthetic UI**: Dark-mode, high-fidelity trading dashboard.
+- [x] **Encryption Constants**: Pre-docked to local Devnet addresses.
+- [x] **Encryption Pipeline**: Simulated homomorphic pipeline.
+- [ ] **Tongo SDK Integration**: Transitioning from simulation to real EC math (Work in Progress).
 
-## Technical Architecture
-
-Hybrid design: **Starknet (L2)** + **Pyth Hermes (Oracle)** + **Supabase (State Management)**.
-
+### 🛠️ Technical Stack
 | Layer      | Stack |
 |-----------|--------|
-| **Frontend** | Next.js 16, React 19, TypeScript, Tailwind CSS, Zustand |
-| **Blockchain** | Starknet (Argent / Braavos), STRK / ETH |
-| **Oracle** | Pyth Network (Hermes API) |
-| **Backend** | Supabase (PostgreSQL, RLS) |
+| **Frontend** | Next.js 15, React 19, TypeScript, Tailwind CSS, Zustand |
+| **Blockchain** | Starknet (Cairo 2.x), ElGamal Encryption |
+| **Tooling** | Scarb, Starknet Foundry (sncast), Starknet Devnet |
+| **Oracle** | Pyth Network (Hermes API for settlement) |
+
+---
+
+## 🏗️ Technical Architecture
+Obolus implements a **Hybrid Privacy Model**:
+1. **On-Chain Privacy**: All sensitive state variables are stored as $(L, R)$ ciphertext pairs.
+2. **Homomorphic Settlement**: Margin updates use additive property $Enc(m_1) + Enc(m_2) = Enc(m_1 + m_2)$ to avoid decryption.
+3. **ZK-Verifiers**: Placeholders for ZK-proofs that ensure traders are solvent without revealing their net worth.
 
 ---
 
 ## Getting Started
 
 ### 1. Install
-
 ```bash
 npm install
 ```
 
-### 2. Environment
-
-Create `.env` based on `.env.example`.
-
-### 3. Run
-
+### 2. Run
 ```bash
 npm run dev
 ```
-
 Open [http://localhost:3000](http://localhost:3000).
 
 ---
 
 ## Resources
-
 - [Starknet](https://starknet.io/)
-- [Starknet React](https://starknet-react.com/)
+- [Tongo SDK](https://github.com/fatsolutions/tongo-sdk)
 - [Pyth Network](https://pyth.network/)
