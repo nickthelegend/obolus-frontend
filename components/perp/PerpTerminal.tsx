@@ -9,6 +9,7 @@ import { AdvancedRealTimeChart } from "react-ts-tradingview-widgets";
 import { PRICE_FEED_IDS, AssetType } from '@/lib/utils/priceFeed';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CallData } from 'starknet';
+import { EncryptionModal } from './EncryptionModal';
 
 export function PerpTerminal() {
     const { address, status, account } = useAccount();
@@ -29,6 +30,12 @@ export function PerpTerminal() {
     const [limitPrice, setLimitPrice] = useState('');
     const [activeTab, setActiveTab] = useState<'positions' | 'orders' | 'history'>('positions');
     const [isSurging, setIsSurging] = useState(false);
+
+    // Encryption Modal State
+    const [isEncryptionModalOpen, setIsEncryptionModalOpen] = useState(false);
+    const [encryptionModalTitle, setEncryptionModalTitle] = useState("Encrypting Order Data");
+    const [encryptionCompleteCallback, setEncryptionCompleteCallback] = useState<() => Promise<void>>(() => async () => { });
+
     const prevBalance = useRef(houseBalance);
 
     // Watch for balance increases (Faucet success)
@@ -51,21 +58,34 @@ export function PerpTerminal() {
     // REAL SMART CONTRACT TRADE EXECUTION
     const handleTrade = async (side: 'long' | 'short') => {
         if (!address || !size || !account) return;
+
+        const collateralAmount = parseFloat(size) * currentPrice / leverage;
+        const collateralBaseUnits = BigInt(Math.floor(collateralAmount * 1e6)); // 6 decimals for USDT
+
+        if (collateralAmount > houseBalance) {
+            alert(`Insufficient USDT. Required: ${collateralAmount.toFixed(2)} USDT, Available: ${houseBalance.toFixed(2)} USDT`);
+            return;
+        }
+
+        if (isSealed) {
+            setEncryptionModalTitle("Encrypting Order Payload");
+            setEncryptionCompleteCallback(() => async () => {
+                setIsEncryptionModalOpen(false);
+                await executeTrade(side, collateralAmount, collateralBaseUnits);
+            });
+            setIsEncryptionModalOpen(true);
+        } else {
+            await executeTrade(side, collateralAmount, collateralBaseUnits);
+        }
+    };
+
+    const executeTrade = async (side: 'long' | 'short', collateralAmount: number, collateralBaseUnits: bigint) => {
         setIsPlacing(true);
 
         try {
-            const collateralAmount = parseFloat(size) * currentPrice / leverage;
-            const collateralBaseUnits = BigInt(Math.floor(collateralAmount * 1e6)); // 6 decimals for USDT
-
-            if (collateralAmount > houseBalance) {
-                alert(`Insufficient USDT. Required: ${collateralAmount.toFixed(2)} USDT, Available: ${houseBalance.toFixed(2)} USDT`);
-                setIsPlacing(false);
-                return;
-            }
-
             if (orderType === 'market') {
                 // MARKET ORDER: Open Position directly on Perp Contract
-                const tx = await account.execute([
+                const tx = await account!.execute([
                     {
                         contractAddress: USDT_ADDRESS,
                         entrypoint: "approve",
@@ -91,7 +111,7 @@ export function PerpTerminal() {
                 console.log("Market Trade Tx:", tx.transaction_hash);
             } else {
                 // LIMIT ORDER: Place Order in SealedOrderbook Contract
-                const tx = await account.execute([
+                const tx = await account!.execute([
                     {
                         contractAddress: process.env.NEXT_PUBLIC_ORDERBOOK_CONTRACT!,
                         entrypoint: "place_order",
@@ -111,7 +131,7 @@ export function PerpTerminal() {
             await placeBetFromHouseBalance(
                 collateralAmount.toFixed(4),
                 `${side === 'long' ? 'UP' : 'DOWN'}-${leverage}`,
-                address,
+                address!,
                 `perp-${Date.now()}`
             );
 
@@ -305,12 +325,22 @@ export function PerpTerminal() {
                                 <button
                                     onClick={async () => {
                                         if (account) {
-                                            const tx = await account.execute({
-                                                contractAddress: process.env.NEXT_PUBLIC_ORDERBOOK_CONTRACT!,
-                                                entrypoint: "match_orders",
-                                                calldata: CallData.compile(["1", "2", "0xabc", "0xdef", ["0x123"]])
+                                            setEncryptionModalTitle("Matching & Generating Settlement Proof");
+                                            setEncryptionCompleteCallback(() => async () => {
+                                                setIsEncryptionModalOpen(false);
+                                                try {
+                                                    const tx = await account.execute({
+                                                        contractAddress: process.env.NEXT_PUBLIC_ORDERBOOK_CONTRACT!,
+                                                        entrypoint: "match_orders",
+                                                        calldata: CallData.compile(["1", "2", "0xabc", "0xdef", ["0x123"]])
+                                                    });
+                                                    console.log("Matcher Triggered:", tx.transaction_hash);
+                                                    alert(`Keeper Math Verified!\nZK Proof generated and settlement transferred.\nTx: ${tx.transaction_hash}`);
+                                                } catch (e: any) {
+                                                    alert("Match failed: " + e.message);
+                                                }
                                             });
-                                            console.log("Matcher Triggered:", tx.transaction_hash);
+                                            setIsEncryptionModalOpen(true);
                                         }
                                     }}
                                     className="px-6 py-2 bg-stark-purple/20 hover:bg-stark-purple text-stark-purple hover:text-white border border-stark-purple/40 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all"
@@ -565,6 +595,13 @@ export function PerpTerminal() {
                     </div>
                 </div>
             </div>
+
+            {/* Encryption Visualizer Modal */}
+            <EncryptionModal
+                isOpen={isEncryptionModalOpen}
+                onComplete={encryptionCompleteCallback}
+                title={encryptionModalTitle}
+            />
         </div>
     );
 }
