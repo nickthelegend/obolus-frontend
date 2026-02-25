@@ -3,6 +3,7 @@
  */
 
 import { getTongoSdk } from './tongo';
+import { buildPoseidon } from 'circomlibjs';
 // Dynamic import for snarkjs to avoid SSR issues
 const snarkjs = typeof window !== 'undefined' ? (window as any).snarkjs || require('snarkjs') : null;
 
@@ -47,9 +48,7 @@ export async function encryptOrderData(
 export async function generateTradeProof(
     secretString: string,
     amount: string | number,
-    recipient: string,
-    commitment: string,
-    nullifier: string
+    recipient: string
 ) {
     if (!snarkjs) {
         console.warn("snarkjs not loaded, skipping actual ZK proof generation.");
@@ -59,13 +58,25 @@ export async function generateTradeProof(
     try {
         console.log("Generating Zero-Knowledge Proof...");
 
+        const poseidon = await buildPoseidon();
+        const F = poseidon.F;
+
+        // Compute Circom/Iden3 Poseidon Hashes over BN254
+        const secretBN = BigInt(secretString || "0");
+        const amountBN = BigInt(amount.toString());
+
+        // Poseidon(secret, amount, 0, 0, 0)
+        const commitment = F.toString(poseidon([secretBN, amountBN, 0n, 0n, 0n]));
+        // Poseidon(secret, commitment)
+        const nullifier = F.toString(poseidon([secretBN, BigInt(commitment)]));
+
         // Format inputs precisely to match circom expectations
         const inputs = {
-            secret: BigInt(secretString || "0").toString(),
-            amount: BigInt(amount.toString()).toString(),
+            secret: secretBN.toString(),
+            amount: amountBN.toString(),
             recipient: BigInt(recipient).toString(),
-            commitment: BigInt(commitment).toString(),
-            nullifier: BigInt(nullifier).toString(),
+            commitment: commitment,
+            nullifier: nullifier,
             callbackTarget: "0",
             callbackSelector: "0",
             callbackArgsHash: "0"
@@ -104,6 +115,8 @@ export async function generateTradeProof(
         return {
             proof,
             publicSignals,
+            commitment,
+            nullifier,
             calldata: garagaData.calldata || [
                 proof.pi_a[0], proof.pi_a[1],
                 proof.pi_b[0][1], proof.pi_b[0][0],

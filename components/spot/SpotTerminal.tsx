@@ -72,6 +72,8 @@ export function SpotTerminal() {
         if (isSealed) {
             let finalSizeL = "0x123", finalSizeR = "0x456", finalPriceL = "0x789", finalPriceR = "0xabc";
             let finalZkCalldata: string[] = [];
+            let finalCommitment = "0";
+            let finalNullifier = "0";
 
             if (tongoPrivKey) {
                 try {
@@ -91,15 +93,15 @@ export function SpotTerminal() {
                         const zkProof = await generateTradeProof(
                             tongoPrivKey, // secret
                             collateralBaseUnits.toString(), // amount
-                            address.toString(), // recipient (using wallet address)
-                            "1000", // mock commitment
-                            "2000"  // mock nullifier
+                            address.toString() // recipient (using wallet address)
                         );
                         if (zkProof) {
                             console.log("[ZK] Proof generated successfully!");
                             console.log("[ZK] Proof Public Signals =>", zkProof.publicSignals);
                             console.log("[ZK] Garaga-formatted Calldata =>", zkProof.calldata);
                             finalZkCalldata = zkProof.calldata;
+                            finalCommitment = zkProof.commitment;
+                            finalNullifier = zkProof.nullifier;
                         }
                     } catch (zkErr) {
                         console.error("[ZK] Proof generation failed:", zkErr);
@@ -114,16 +116,16 @@ export function SpotTerminal() {
             setEncryptionModalTitle("Encrypting Order Payload");
             setEncryptionCompleteCallback(() => async () => {
                 setIsEncryptionModalOpen(false);
-                await executeTrade(side, collateralAmount, collateralBaseUnits, finalSizeL, finalSizeR, finalPriceL, finalPriceR, finalZkCalldata);
+                await executeTrade(side, collateralAmount, collateralBaseUnits, finalSizeL, finalSizeR, finalPriceL, finalPriceR, finalZkCalldata, finalCommitment, finalNullifier);
             });
             setIsEncryptionModalOpen(true);
         } else {
             // Mocks as fallback for unsealed/plaintext
-            await executeTrade(side, collateralAmount, collateralBaseUnits, "0x123", "0x456", "0x789", "0xabc", []);
+            await executeTrade(side, collateralAmount, collateralBaseUnits, "0x123", "0x456", "0x789", "0xabc", [], "0", "0");
         }
     };
 
-    const executeTrade = async (side: 'long' | 'short', collateralAmount: number, collateralBaseUnits: bigint, sizeL: string, sizeR: string, priceL: string, priceR: string, zkCalldata: string[]) => {
+    const executeTrade = async (side: 'long' | 'short', collateralAmount: number, collateralBaseUnits: bigint, sizeL: string, sizeR: string, priceL: string, priceR: string, zkCalldata: string[], commitment: string, nullifier: string) => {
         setIsPlacing(true);
 
         try {
@@ -146,7 +148,8 @@ export function SpotTerminal() {
                         calldata: CallData.compile([
                             sizeL, sizeR, priceL, priceR,
                             collateralBaseUnits.toString(),
-                            zkCalldata
+                            zkCalldata,
+                            commitment, nullifier
                         ])
                     }
                 ]);
