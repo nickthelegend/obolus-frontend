@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CallData } from 'starknet';
 import { EncryptionModal } from './EncryptionModal';
 import { encryptOrderData } from '@/lib/tongo';
+import { generateTradeProof } from '@/lib/zk';
 
 export function PerpTerminal() {
     const { address, status, account } = useAccount();
@@ -84,6 +85,24 @@ export function PerpTerminal() {
                     const encryptedPrice = await encryptOrderData(tongoPrivKey, BigInt(Math.floor(priceTarget * 1e6)));
                     finalPriceL = encryptedPrice.ct_L;
                     finalPriceR = encryptedPrice.ct_R;
+
+                    console.log("[ZK] Triggering local WASM ZK Proof Generator...");
+                    try {
+                        const zkProof = await generateTradeProof(
+                            tongoPrivKey, // secret
+                            collateralBaseUnits.toString(), // amount
+                            address.toString(), // recipient (using wallet address)
+                            "1000", // mock commitment
+                            "2000"  // mock nullifier
+                        );
+                        if (zkProof) {
+                            console.log("[ZK] Proof generated successfully!");
+                            console.log("[ZK] Proof Public Signals =>", zkProof.publicSignals);
+                            console.log("[ZK] Garaga-formatted Calldata =>", zkProof.calldata);
+                        }
+                    } catch (zkErr) {
+                        console.error("[ZK] Proof generation failed:", zkErr);
+                    }
 
                     setCtPayload({ sizeL: finalSizeL, sizeR: finalSizeR, priceL: finalPriceL, priceR: finalPriceR });
                 } catch (e) {
