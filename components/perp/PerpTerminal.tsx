@@ -72,6 +72,7 @@ export function PerpTerminal() {
 
         if (isSealed) {
             let finalSizeL = "0x123", finalSizeR = "0x456", finalPriceL = "0x789", finalPriceR = "0xabc";
+            let finalZkCalldata: string[] = [];
 
             if (tongoPrivKey) {
                 try {
@@ -99,6 +100,7 @@ export function PerpTerminal() {
                             console.log("[ZK] Proof generated successfully!");
                             console.log("[ZK] Proof Public Signals =>", zkProof.publicSignals);
                             console.log("[ZK] Garaga-formatted Calldata =>", zkProof.calldata);
+                            finalZkCalldata = zkProof.calldata;
                         }
                     } catch (zkErr) {
                         console.error("[ZK] Proof generation failed:", zkErr);
@@ -113,16 +115,16 @@ export function PerpTerminal() {
             setEncryptionModalTitle("Encrypting Order Payload");
             setEncryptionCompleteCallback(() => async () => {
                 setIsEncryptionModalOpen(false);
-                await executeTrade(side, collateralAmount, collateralBaseUnits, finalSizeL, finalSizeR, finalPriceL, finalPriceR);
+                await executeTrade(side, collateralAmount, collateralBaseUnits, finalSizeL, finalSizeR, finalPriceL, finalPriceR, finalZkCalldata);
             });
             setIsEncryptionModalOpen(true);
         } else {
             // Mocks as fallback for unsealed/plaintext
-            await executeTrade(side, collateralAmount, collateralBaseUnits, "0x123", "0x456", "0x789", "0xabc");
+            await executeTrade(side, collateralAmount, collateralBaseUnits, "0x123", "0x456", "0x789", "0xabc", []);
         }
     };
 
-    const executeTrade = async (side: 'long' | 'short', collateralAmount: number, collateralBaseUnits: bigint, sizeL: string, sizeR: string, priceL: string, priceR: string) => {
+    const executeTrade = async (side: 'long' | 'short', collateralAmount: number, collateralBaseUnits: bigint, sizeL: string, sizeR: string, priceL: string, priceR: string, zkCalldata: string[]) => {
         setIsPlacing(true);
 
         try {
@@ -144,7 +146,8 @@ export function PerpTerminal() {
                         entrypoint: "open_position_sealed",
                         calldata: CallData.compile([
                             sizeL, sizeR, priceL, priceR,
-                            collateralBaseUnits.toString()
+                            collateralBaseUnits.toString(),
+                            zkCalldata
                         ])
                     }
                 ]);

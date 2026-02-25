@@ -5,7 +5,7 @@ import { getNetwork, type TokenSymbol, getToken } from "./encryption-constants";
 let TongoAccountClass: any = null;
 let tongoSdkModule: any = null;
 
-async function getTongoSdk() {
+export async function getTongoSdk() {
   if (!tongoSdkModule) {
     tongoSdkModule = await import("@fatsolutions/tongo-sdk");
   }
@@ -24,7 +24,7 @@ function getProvider() {
   const network = getNetwork();
   return new RpcProvider({
     nodeUrl: network.rpcUrl,
-    specVersion: "0.10.0",
+    specVersion: "0.9.0",
   });
 }
 

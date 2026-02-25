@@ -79,11 +79,32 @@ export async function generateTradeProof(
         );
         console.timeEnd("ZK-Prover");
 
+        console.log("Fetching remote Garaga hints...");
+        const vkUrl = typeof window !== 'undefined' ? `${window.location.origin}/zk/verification_key.json` : '';
+        const vkRes = await fetch(vkUrl);
+        const vk = await vkRes.json();
+
+        const garagaRes = await fetch("http://127.0.0.1:8000/generate_calldata", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                proof,
+                public_inputs: publicSignals,
+                vk
+            })
+        });
+
+        const garagaData = await garagaRes.json();
+
+        if (garagaData.error) {
+            console.error("Garaga server error:", garagaData.error);
+        }
+
         // Format for Garaga / Cairo Verification
         return {
             proof,
             publicSignals,
-            calldata: [
+            calldata: garagaData.calldata || [
                 proof.pi_a[0], proof.pi_a[1],
                 proof.pi_b[0][1], proof.pi_b[0][0],
                 proof.pi_b[1][1], proof.pi_b[1][0],
