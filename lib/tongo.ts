@@ -3,10 +3,18 @@ import { getNetwork, type TokenSymbol, getToken } from "./encryption-constants";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let TongoAccountClass: any = null;
+let tongoSdkModule: any = null;
+
+async function getTongoSdk() {
+  if (!tongoSdkModule) {
+    tongoSdkModule = await import("@fatsolutions/tongo-sdk");
+  }
+  return tongoSdkModule;
+}
 
 async function getTongoAccountClass() {
   if (!TongoAccountClass) {
-    const mod = await import("@fatsolutions/tongo-sdk");
+    const mod = await getTongoSdk();
     TongoAccountClass = mod.Account;
   }
   return TongoAccountClass;
@@ -188,4 +196,41 @@ export function erc20ToTongo(erc20Amount: bigint, tokenSymbol: TokenSymbol): big
 export function tongoToErc20(tongoAmount: bigint, tokenSymbol: TokenSymbol): bigint {
   const token = getToken(tokenSymbol);
   return tongoAmount * token.rate;
+}
+
+/**
+ * Encrypt a discrete value using the SDK's native Tongo ElGamal encryption.
+ * Generates { ct_L, ct_R } as HEX strings ready to be sent to Starknet.
+ */
+export async function encryptOrderData(
+  tongoPrivateKey: string,
+  amount: number | bigint
+) {
+  const mod = await getTongoSdk();
+  const { derivePublicKey, starkPointToProjectivePoint, createCipherBalance, projectivePointToStarkPoint } = mod;
+
+  const privKeyBigInt = BigInt(tongoPrivateKey);
+  const pubKey = derivePublicKey(privKeyBigInt);
+  const pubKeyProj = starkPointToProjectivePoint(pubKey);
+
+  // Generate a secure random scalar for the ElGamal encryption random factor
+  const array = new Uint8Array(32);
+  window.crypto.getRandomValues(array);
+  let randomHex = '0x';
+  for (let i = 0; i < array.length; i++) {
+    randomHex += array[i].toString(16).padStart(2, '0');
+  }
+  // Approximate curve order modulo
+  const randomBigInt = BigInt(randomHex) % BigInt("3618502788666131213697322783095070105623107215331596699973092056135872020481");
+
+  const amountBigInt = BigInt(Math.floor(Number(amount)));
+  const cipher = createCipherBalance(pubKeyProj, amountBigInt, randomBigInt);
+
+  const L = projectivePointToStarkPoint(cipher.L);
+  const R = projectivePointToStarkPoint(cipher.R);
+
+  return {
+    ct_L: '0x' + L.x.toString(16),
+    ct_R: '0x' + R.x.toString(16)
+  };
 }

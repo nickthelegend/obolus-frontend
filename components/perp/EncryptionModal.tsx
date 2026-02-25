@@ -6,9 +6,13 @@ interface EncryptionModalProps {
     isOpen: boolean;
     onComplete: () => void;
     title?: string;
+    ctSizeL?: string;
+    ctSizeR?: string;
+    ctPriceL?: string;
+    ctPriceR?: string;
 }
 
-export function EncryptionModal({ isOpen, onComplete, title = "Tongo Encryption Protocol" }: EncryptionModalProps) {
+export function EncryptionModal({ isOpen, onComplete, title = "Tongo Encryption Protocol", ctSizeL, ctSizeR, ctPriceL, ctPriceR }: EncryptionModalProps) {
     const [step, setStep] = useState(0);
 
     useEffect(() => {
@@ -31,6 +35,11 @@ export function EncryptionModal({ isOpen, onComplete, title = "Tongo Encryption 
     }, [isOpen, onComplete]);
 
     if (!isOpen) return null;
+
+    const displaySizeL = ctSizeL ? `${ctSizeL.slice(0, 5)}...${ctSizeL.slice(-4)}` : '0x6b8...4a21';
+    const displaySizeR = ctSizeR ? `${ctSizeR.slice(0, 5)}...${ctSizeR.slice(-4)}` : '0x1f4...bc99';
+    const displayPriceL = ctPriceL ? `${ctPriceL.slice(0, 5)}...${ctPriceL.slice(-4)}` : '0x9a2...fe11';
+    const displayPriceR = ctPriceR ? `${ctPriceR.slice(0, 5)}...${ctPriceR.slice(-4)}` : '0x33c...00da';
 
     return (
         <AnimatePresence>
@@ -72,8 +81,8 @@ export function EncryptionModal({ isOpen, onComplete, title = "Tongo Encryption 
                                 <div className="mt-1">{step > 0 ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <Lock className="w-4 h-4 text-stark-purple animate-pulse" />}</div>
                                 <div>
                                     <p className="text-sm font-bold">Encrypting Size</p>
-                                    <p className="text-[10px] text-muted-foreground font-mono mt-0.5">ct_L: 0x6b8...4a21</p>
-                                    <p className="text-[10px] text-muted-foreground font-mono">ct_R: 0x1f4...bc99</p>
+                                    <p className="text-[10px] text-muted-foreground font-mono mt-0.5">ct_L: {displaySizeL}</p>
+                                    <p className="text-[10px] text-muted-foreground font-mono">ct_R: {displaySizeR}</p>
                                 </div>
                             </div>
 
@@ -84,8 +93,8 @@ export function EncryptionModal({ isOpen, onComplete, title = "Tongo Encryption 
                                     <p className="text-sm font-bold" style={{ opacity: step >= 1 ? 1 : 0.5 }}>Encrypting Limit Price</p>
                                     {step >= 1 && (
                                         <div className="mt-1 text-[10px] text-muted-foreground font-mono">
-                                            <p>ct_L: 0x9a2...fe11</p>
-                                            <p>ct_R: 0x33c...00da</p>
+                                            <p>ct_L: {displayPriceL}</p>
+                                            <p>ct_R: {displayPriceR}</p>
                                         </div>
                                     )}
                                 </div>

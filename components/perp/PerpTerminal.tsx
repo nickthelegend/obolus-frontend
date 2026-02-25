@@ -10,6 +10,7 @@ import { PRICE_FEED_IDS, AssetType } from '@/lib/utils/priceFeed';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CallData } from 'starknet';
 import { EncryptionModal } from './EncryptionModal';
+import { encryptOrderData } from '@/lib/tongo';
 
 export function PerpTerminal() {
     const { address, status, account } = useAccount();
@@ -35,6 +36,7 @@ export function PerpTerminal() {
     const [isEncryptionModalOpen, setIsEncryptionModalOpen] = useState(false);
     const [encryptionModalTitle, setEncryptionModalTitle] = useState("Encrypting Order Data");
     const [encryptionCompleteCallback, setEncryptionCompleteCallback] = useState<() => Promise<void>>(() => async () => { });
+    const [ctPayload, setCtPayload] = useState({ sizeL: '', sizeR: '', priceL: '', priceR: '' });
 
     const prevBalance = useRef(houseBalance);
 
@@ -68,18 +70,40 @@ export function PerpTerminal() {
         }
 
         if (isSealed) {
+            let finalSizeL = "0x123", finalSizeR = "0x456", finalPriceL = "0x789", finalPriceR = "0xabc";
+
+            if (tongoPrivKey) {
+                try {
+                    // Encrypt Size
+                    const encryptedSize = await encryptOrderData(tongoPrivKey, collateralBaseUnits);
+                    finalSizeL = encryptedSize.ct_L;
+                    finalSizeR = encryptedSize.ct_R;
+
+                    // Encrypt Price
+                    const priceTarget = orderType === 'limit' && limitPrice ? parseFloat(limitPrice) : currentPrice;
+                    const encryptedPrice = await encryptOrderData(tongoPrivKey, BigInt(Math.floor(priceTarget * 1e6)));
+                    finalPriceL = encryptedPrice.ct_L;
+                    finalPriceR = encryptedPrice.ct_R;
+
+                    setCtPayload({ sizeL: finalSizeL, sizeR: finalSizeR, priceL: finalPriceL, priceR: finalPriceR });
+                } catch (e) {
+                    console.error("Encryption error:", e);
+                }
+            }
+
             setEncryptionModalTitle("Encrypting Order Payload");
             setEncryptionCompleteCallback(() => async () => {
                 setIsEncryptionModalOpen(false);
-                await executeTrade(side, collateralAmount, collateralBaseUnits);
+                await executeTrade(side, collateralAmount, collateralBaseUnits, finalSizeL, finalSizeR, finalPriceL, finalPriceR);
             });
             setIsEncryptionModalOpen(true);
         } else {
-            await executeTrade(side, collateralAmount, collateralBaseUnits);
+            // Mocks as fallback for unsealed/plaintext
+            await executeTrade(side, collateralAmount, collateralBaseUnits, "0x123", "0x456", "0x789", "0xabc");
         }
     };
 
-    const executeTrade = async (side: 'long' | 'short', collateralAmount: number, collateralBaseUnits: bigint) => {
+    const executeTrade = async (side: 'long' | 'short', collateralAmount: number, collateralBaseUnits: bigint, sizeL: string, sizeR: string, priceL: string, priceR: string) => {
         setIsPlacing(true);
 
         try {
@@ -100,10 +124,7 @@ export function PerpTerminal() {
                         contractAddress: process.env.NEXT_PUBLIC_PERP_CONTRACT!,
                         entrypoint: "open_position_sealed",
                         calldata: CallData.compile([
-                            "0x123", // ct_size_L (placeholder)
-                            "0x456", // ct_size_R (placeholder)
-                            "0x789", // ct_price_L (placeholder)
-                            "0xabc", // ct_price_R (placeholder)
+                            sizeL, sizeR, priceL, priceR,
                             collateralBaseUnits.toString()
                         ])
                     }
@@ -117,10 +138,7 @@ export function PerpTerminal() {
                         entrypoint: "place_order",
                         calldata: CallData.compile([
                             side === 'long' ? "0" : "1", // 0=BUY, 1=SELL
-                            "0xabc", // ct_price_L (placeholder)
-                            "0xdef", // ct_price_R (placeholder)
-                            "0x123", // ct_size_L (placeholder)
-                            "0x456"  // ct_size_R (placeholder)
+                            priceL, priceR, sizeL, sizeR
                         ])
                     }
                 ]);
@@ -601,6 +619,10 @@ export function PerpTerminal() {
                 isOpen={isEncryptionModalOpen}
                 onComplete={encryptionCompleteCallback}
                 title={encryptionModalTitle}
+                ctSizeL={ctPayload.sizeL}
+                ctSizeR={ctPayload.sizeR}
+                ctPriceL={ctPayload.priceL}
+                ctPriceR={ctPayload.priceR}
             />
         </div>
     );
