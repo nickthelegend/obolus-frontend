@@ -52,6 +52,7 @@
     "react-ts-tradingview-widgets": "^1.2.8",
     "recharts": "^3.6.0",
     "rxjs": "^7.8.2",
+    "snarkjs": "^0.7.6",
     "starknet": "^8.9.2",
     "starknetkit": "^3.4.3",
     "three": "^0.182.0",
