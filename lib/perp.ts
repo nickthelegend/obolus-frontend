@@ -1,4 +1,4 @@
-import { AccountInterface, ProviderInterface, CallData } from "starknet";
+import { AccountInterface, ProviderInterface, CallData, uint256 } from "starknet";
 
 const OBOLUS_PERP_ADDRESS = process.env.NEXT_PUBLIC_PERP_CONTRACT || "";
 const ORACLE_ADDRESS = process.env.NEXT_PUBLIC_ORACLE_CONTRACT || "";
@@ -48,6 +48,9 @@ export async function openPositionSealed(
   ct_size: { L: string, R: string },
   ct_price: { L: string, R: string },
   collateral: bigint,
+  zkProof: string[] = [],
+  commitment: string = "0",
+  nullifier: string = "0"
 ) {
   return account.execute([
     {
@@ -63,11 +66,15 @@ export async function openPositionSealed(
         ct_size.R,
         ct_price.L,
         ct_price.R,
-        collateral.toString()
+        collateral.toString(),
+        zkProof,
+        uint256.bnToUint256(commitment),
+        uint256.bnToUint256(nullifier)
       ])
     }
   ]);
 }
+
 
 export async function closePositionSealed(
   account: AccountInterface,

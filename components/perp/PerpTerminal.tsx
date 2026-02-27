@@ -8,7 +8,7 @@ import { SealedPositionList } from './SealedPositionList';
 import { AdvancedRealTimeChart } from "react-ts-tradingview-widgets";
 import { PRICE_FEED_IDS, AssetType } from '@/lib/utils/priceFeed';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CallData } from 'starknet';
+import { CallData, uint256 } from 'starknet';
 import { EncryptionModal } from './EncryptionModal';
 import { encryptOrderData } from '@/lib/tongo';
 import { generateTradeProof } from '@/lib/zk';
@@ -150,9 +150,11 @@ export function PerpTerminal() {
                             sizeL, sizeR, priceL, priceR,
                             collateralBaseUnits.toString(),
                             zkCalldata,
-                            commitment, nullifier
+                            uint256.bnToUint256(commitment),
+                            uint256.bnToUint256(nullifier)
                         ])
                     }
+
                 ]);
                 console.log("Market Trade Tx:", tx.transaction_hash);
             } else {
@@ -375,8 +377,9 @@ export function PerpTerminal() {
                                                     const tx = await account.execute({
                                                         contractAddress: process.env.NEXT_PUBLIC_ORDERBOOK_CONTRACT!,
                                                         entrypoint: "match_orders",
-                                                        calldata: CallData.compile(["1", "2", "0xabc", "0xdef", ["0x123"]])
+                                                        calldata: CallData.compile(["1", "2", "0xabc", "0xdef"])
                                                     });
+
                                                     console.log("Matcher Triggered:", tx.transaction_hash);
                                                     alert(`Keeper Math Verified!\nZK Proof generated and settlement transferred.\nTx: ${tx.transaction_hash}`);
                                                 } catch (e: any) {
