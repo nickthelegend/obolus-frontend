@@ -1,17 +1,12 @@
 /**
  * POST /api/balance/payout endpoint
  * 
- * Task: 4.5 Create POST /api/balance/payout endpoint
- * Requirements: 4.1, 4.2
- * 
- * Called when a round settles and user wins.
+ * Called when a round settles and user wins via Convex.
  * Credits payout amount to user's house balance.
- * Inserts audit log entry with operation_type='bet_won'.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/client';
-import { ethers } from 'ethers';
+import { convex, api } from '@/lib/convex-client';
 
 interface PayoutRequest {
   userAddress: string;
@@ -33,14 +28,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate BNB (EVM) address
-    if (!ethers.isAddress(userAddress)) {
-      return NextResponse.json(
-        { error: 'Invalid BNB address format' },
-        { status: 400 }
-      );
-    }
-
     // Validate payout amount is positive
     if (payoutAmount <= 0) {
       return NextResponse.json(
@@ -49,48 +36,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Call credit_balance_for_payout stored procedure
-    // This procedure handles:
-    // - Atomic balance update with row-level locking
-    // - Creating user record if it doesn't exist
-    // - Inserting audit log entry with operation_type='bet_won'
-    const { data, error } = await supabase.rpc('credit_balance_for_payout', {
-      p_user_address: userAddress,
-      p_payout_amount: payoutAmount,
-      p_bet_id: betId,
+    // Credit balance atomically via Convex
+    const result = await convex.mutation(api.users.creditBalanceForPayout, {
+      user_address: userAddress,
+      amount: payoutAmount,
+      bet_id: betId
     });
-
-    // Handle database errors
-    if (error) {
-      console.error('Database error in payout:', error);
-      return NextResponse.json(
-        { error: 'Service temporarily unavailable. Please try again.' },
-        { status: 503 }
-      );
-    }
-
-    // Parse the JSON result from the stored procedure
-    const result = data as { success: boolean; error: string | null; new_balance: number };
-
-    // Check if the procedure reported an error
-    if (!result.success) {
-      return NextResponse.json(
-        { error: result.error || 'Payout failed' },
-        { status: 400 }
-      );
-    }
 
     // Return success with new balance
     return NextResponse.json({
       success: true,
-      newBalance: parseFloat(result.new_balance.toString()),
+      newBalance: result.new_balance,
     });
-  } catch (error) {
+  } catch (error: any) {
     // Handle unexpected errors
-    console.error('Unexpected error in POST /api/balance/payout:', error);
+    console.error('Unexpected error in POST /api/balance/payout for Convex:', error);
     return NextResponse.json(
-      { error: 'An error occurred processing your request' },
+      { error: error.message || 'An error occurred processing your request' },
       { status: 500 }
     );
   }
 }
+

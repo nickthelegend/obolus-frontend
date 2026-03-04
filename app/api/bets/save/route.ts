@@ -1,10 +1,10 @@
 /**
- * API Route: Save a bet result to Supabase
+ * API Route: Save a bet result to Convex
  * POST /api/bets/save
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/client';
+import { convex, api } from '@/lib/convex-client';
 
 export async function POST(request: NextRequest) {
     try {
@@ -28,32 +28,25 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        const { error } = await supabase
-            .from('bet_history')
-            .upsert({
-                id,
-                wallet_address: walletAddress.toLowerCase(),
-                asset: asset || 'BNB',
-                direction: direction || 'UP',
-                amount: parseFloat(amount) || 0,
-                multiplier: parseFloat(multiplier) || 1.9,
-                strike_price: parseFloat(strikePrice) || 0,
-                end_price: parseFloat(endPrice) || 0,
-                payout: parseFloat(payout) || 0,
-                won: !!won,
-                mode: mode || 'binomo',
-                network: network || 'BNB',
-                resolved_at: new Date().toISOString(),
-            }, { onConflict: 'id' });
-
-        if (error) {
-            console.error('Supabase bet save error:', error);
-            return NextResponse.json({ error: 'Failed to save bet' }, { status: 500 });
-        }
+        await convex.mutation(api.bets.saveBet, {
+            id,
+            walletAddress: walletAddress.toLowerCase(),
+            asset: asset || 'BNB',
+            direction: direction || 'UP',
+            amount: parseFloat(amount) || 0,
+            multiplier: parseFloat(multiplier) || 1.9,
+            strikePrice: parseFloat(strikePrice) || 0,
+            endPrice: parseFloat(endPrice) || 0,
+            payout: parseFloat(payout) || 0,
+            won: !!won,
+            mode: mode || 'binomo',
+            network: network || 'BNB',
+        });
 
         return NextResponse.json({ success: true });
-    } catch (error) {
-        console.error('Error saving bet:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    } catch (error: any) {
+        console.error('Error saving bet to Convex:', error);
+        return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
     }
 }
+

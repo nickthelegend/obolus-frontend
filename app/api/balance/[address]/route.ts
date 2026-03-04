@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin as supabase } from '@/lib/supabase/client';
+import { convex, api } from '@/lib/convex-client';
 
 export async function GET(
   request: NextRequest,
@@ -12,35 +12,21 @@ export async function GET(
       return NextResponse.json({ error: 'Address required' }, { status: 400 });
     }
 
-    // Query user_balances table by user_address
-    const { data, error } = await supabase
-      .from('user_balances')
-      .select('balance, updated_at')
-      .eq('user_address', address)
-      .single();
+    // Query user_balances from Convex
+    const data = await convex.query(api.users.getBalance, { user_address: address });
 
-    // Handle database errors
-    if (error) {
-      // If user not found (PGRST116), return 0 balance
-      if (error.code === 'PGRST116') {
-        return NextResponse.json({
-          balance: 0,
-          updatedAt: null,
-          tier: 'free'
-        });
-      }
-
-      // Log other database errors
-      console.error(`Database error fetching balance for ${address}:`, error);
-      return NextResponse.json(
-        { error: 'Service temporarily unavailable: ' + error.message },
-        { status: 503 }
-      );
+    // Handle database errors or missing record
+    if (!data || data.updated_at === null) {
+      return NextResponse.json({
+        balance: 0,
+        updatedAt: null,
+        tier: 'free'
+      });
     }
 
     // Return balance and updated_at timestamp
     return NextResponse.json({
-      balance: parseFloat(data.balance),
+      balance: data.balance,
       updatedAt: data.updated_at,
       tier: 'free'
     });
@@ -53,3 +39,4 @@ export async function GET(
     );
   }
 }
+

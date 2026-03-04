@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin as supabase } from '@/lib/supabase/client';
+import { convex, api } from '@/lib/convex-client';
 import { ethers } from 'ethers';
 import { sendKaspaTransaction } from '@/lib/kaspa/transaction';
 
@@ -39,19 +39,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. Get house balance from Supabase and validate
-    const { data: userData, error: userError } = await supabase
-      .from('user_balances')
-      .select('balance')
-      .eq('user_address', userAddress)
-      .single();
+    // 1. Get current balance from Convex and validate
+    const data = await convex.query(api.users.getBalance, { user_address: userAddress });
 
-    if (userError || !userData) {
-      console.error('User not found in withdrawal:', userError);
+    if (!data || data.updated_at === null) {
       return NextResponse.json({ error: 'User balance record not found' }, { status: 404 });
     }
 
-    const currentBalance = parseFloat(userData.balance);
+    const currentBalance = data.balance;
     if (currentBalance < amount) {
       return NextResponse.json({ error: 'Insufficient house balance' }, { status: 400 });
     }
@@ -89,43 +84,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 4. Update Supabase balance (only after successful on-chain tx)
-    const newBalance = currentBalance - amount;
+    // 4. Update Convex balance atomically
+    const result = await convex.mutation(api.users.updateBalanceForWithdrawal, {
+      user_address: userAddress,
+      amount: amount,
+      transaction_hash: txHash
+    });
 
-    const { error: updateError } = await supabase
-      .from('user_balances')
-      .update({
-        balance: newBalance,
-        updated_at: new Date().toISOString()
-      })
-      .eq('user_address', userAddress);
-
-    if (updateError) {
-      console.error('[Withdraw] Database error:', updateError);
-      // NOTE: The on-chain tx already succeeded. We should still return success
-      // but flag the DB error for manual reconciliation.
-      console.error('[Withdraw] ⚠️ CRITICAL: On-chain tx succeeded but DB update failed!');
-      console.error(`[Withdraw] TX: ${txHash}, User: ${userAddress}, Amount: ${amount}`);
-    }
-
-    // 5. Insert audit log entry
-    await supabase
-      .from('balance_audit_log')
-      .insert({
-        user_address: userAddress,
-        operation_type: 'withdrawal',
-        amount: amount,
-        balance_before: currentBalance,
-        balance_after: newBalance,
-        transaction_hash: txHash
-      });
-
-    console.log(`[Withdraw] ✅ Withdrawal complete: User balance updated to ${newBalance} KAS`);
+    console.log(`[Withdraw] ✅ Withdrawal complete: User balance updated to ${result.new_balance} KAS`);
 
     return NextResponse.json({
       success: true,
       txHash: txHash,
-      newBalance: newBalance,
+      newBalance: result.new_balance,
       netAmount: netWithdrawAmount,
       fee: feeAmount,
       status: 'confirmed',
@@ -139,3 +110,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+

@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin as supabase } from '@/lib/supabase/client';
+import { convex, api } from '@/lib/convex-client';
 import { ethers } from 'ethers';
 import { getTransaction } from '@/lib/kaspa/rpc';
 
@@ -39,22 +39,6 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`[Deposit] Verifying transaction ${txHash} for ${userAddress}`);
-
-    // Check if transaction was already processed
-    const { data: existingLog } = await supabase
-      .from('balance_audit_log')
-      .select('id')
-      .eq('transaction_hash', txHash)
-      .eq('operation_type', 'deposit')
-      .single();
-
-    if (existingLog) {
-      console.log(`[Deposit] ⚠️ Transaction already processed: ${txHash}`);
-      return NextResponse.json(
-        { error: 'Transaction already processed' },
-        { status: 400 }
-      );
-    }
 
     // Verify transaction on blockchain (only for Kaspa addresses)
     let amount = 0;
@@ -92,7 +76,6 @@ export async function POST(request: NextRequest) {
 
       if (txInfo.outputs) {
         for (const output of txInfo.outputs) {
-          // REST API uses snake_case field: script_public_key_address
           const outputAddress = output.script_public_key_address;
           if (outputAddress === treasuryAddress) {
             depositAmountSompi += BigInt(output.amount);
@@ -118,75 +101,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update user balance
-    let newBalance = amount;
+    // Update user balance atomically via Convex
+    const result = await convex.mutation(api.users.updateBalanceForDeposit, {
+      user_address: userAddress,
+      amount: amount,
+      transaction_hash: txHash
+    });
 
-    const { data: existingData, error: fetchError } = await supabase
-      .from('user_balances')
-      .select('balance')
-      .eq('user_address', userAddress)
-      .single();
-
-    if (fetchError && fetchError.code !== 'PGRST116') {
-      console.error('[Deposit] Error fetching balance:', fetchError);
-      return NextResponse.json(
-        { error: 'Database error: ' + fetchError.message },
-        { status: 500 }
-      );
-    }
-
-    if (existingData) {
-      newBalance = parseFloat(existingData.balance) + amount;
-      const { error: updateError } = await supabase
-        .from('user_balances')
-        .update({
-          balance: newBalance,
-          updated_at: new Date().toISOString()
-        })
-        .eq('user_address', userAddress);
-
-      if (updateError) {
-        console.error('[Deposit] Error updating balance:', updateError);
-        return NextResponse.json(
-          { error: 'Database error: ' + updateError.message },
-          { status: 500 }
-        );
-      }
-    } else {
-      const { error: insertError } = await supabase
-        .from('user_balances')
-        .insert({
-          user_address: userAddress,
-          balance: newBalance,
-          updated_at: new Date().toISOString(),
-          created_at: new Date().toISOString()
-        });
-
-      if (insertError) {
-        console.error('[Deposit] Error inserting balance:', insertError);
-        return NextResponse.json(
-          { error: 'Database error: ' + insertError.message },
-          { status: 500 }
-        );
-      }
-    }
-
-    console.log(`[Deposit] ✅ Balance updated: ${existingData ? parseFloat(existingData.balance) : 0} -> ${newBalance} KAS`);
-
-    await supabase
-      .from('balance_audit_log')
-      .insert({
-        user_address: userAddress,
-        operation_type: 'deposit',
-        amount: amount,
-        balance_before: existingData ? parseFloat(existingData.balance) : 0,
-        balance_after: newBalance,
-        transaction_hash: txHash
-      });
+    console.log(`[Deposit] ✅ Balance updated via Convex for ${userAddress}. New balance: ${result.new_balance}`);
 
     return NextResponse.json({
       success: true,
-      newBalance: newBalance,
+      newBalance: result.new_balance,
       amount: amount,
       txHash: txHash
     });
@@ -199,3 +125,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+

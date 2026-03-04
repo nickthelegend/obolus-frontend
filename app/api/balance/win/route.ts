@@ -1,13 +1,12 @@
 /**
  * POST /api/balance/win endpoint
  * 
- * Credits winning amount to user's house balance.
+ * Credits winning amount to user's house balance via Convex.
  * Called when a bet is won in the instant-resolution system.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin as supabase } from '@/lib/supabase/client';
-import { ethers } from 'ethers';
+import { convex, api } from '@/lib/convex-client';
 
 interface WinRequest {
     userAddress: string;
@@ -29,14 +28,6 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Validate user address
-        if (!userAddress || userAddress.length < 10) {
-            return NextResponse.json(
-                { error: 'Invalid Kaspa address format' },
-                { status: 400 }
-            );
-        }
-
         // Validate win amount is positive
         if (winAmount <= 0) {
             return NextResponse.json(
@@ -45,78 +36,26 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Get current balance
-        const { data: userData, error: fetchError } = await supabase
-            .from('user_balances')
-            .select('balance')
-            .eq('user_address', userAddress)
-            .single();
-
-        if (fetchError) {
-            console.error('Error fetching user balance for win:', fetchError);
-            // If RLS blocked it or other error
-            return NextResponse.json(
-                { error: 'Failed to access user balance' },
-                { status: 500 }
-            );
-        }
-
-        if (!userData) {
-            return NextResponse.json(
-                { error: 'User not found' },
-                { status: 404 }
-            );
-        }
-
-        const currentBalance = parseFloat(userData.balance.toString());
-        const newBalance = currentBalance + winAmount;
-
-        // Update balance
-        const { error: updateError } = await supabase
-            .from('user_balances')
-            .update({
-                balance: newBalance,
-                updated_at: new Date().toISOString()
-            })
-            .eq('user_address', userAddress);
-
-        if (updateError) {
-            console.error('Error updating balance:', updateError);
-            return NextResponse.json(
-                { error: 'Failed to credit winnings' },
-                { status: 500 }
-            );
-        }
-
-        // Insert audit log entry
-        const { error: auditError } = await supabase
-            .from('balance_audit_log')
-            .insert({
-                user_address: userAddress,
-                operation_type: 'bet_won',
-                amount: winAmount,
-                balance_before: currentBalance,
-                balance_after: newBalance,
-                bet_id: betId
-            });
-
-        if (auditError) {
-            console.error('Error inserting audit log:', auditError);
-            // Don't fail the request for audit log errors
-        }
+        // Credit balance atomically via Convex
+        const result = await convex.mutation(api.users.creditBalanceForPayout, {
+            user_address: userAddress,
+            amount: winAmount,
+            bet_id: betId
+        });
 
         // Return success with new balance
         return NextResponse.json({
             success: true,
-            newBalance: newBalance,
+            newBalance: result.new_balance,
             winAmount: winAmount
         });
 
-    } catch (error) {
-        console.error('Unexpected error in POST /api/balance/win:', error);
+    } catch (error: any) {
+        console.error('Unexpected error in POST /api/balance/win for Convex:', error);
         return NextResponse.json(
-            { error: 'An error occurred processing your request' },
+            { error: error.message || 'An error occurred processing your request' },
             { status: 500 }
         );
     }
 }
+

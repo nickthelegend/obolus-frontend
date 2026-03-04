@@ -6,23 +6,15 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/client';
+import { convex, api } from '@/lib/convex-client';
 
 export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
         const limit = parseInt(searchParams.get('limit') || '10');
 
-        // Use a raw SQL query via a Supabase RPC or manual aggregation
-        // We'll do it with a simple select + client-side aggregation for flexibility
-        const { data, error } = await supabase
-            .from('bet_history')
-            .select('wallet_address, amount, payout, won');
-
-        if (error) {
-            console.error('Supabase leaderboard error:', error);
-            return NextResponse.json({ error: 'Failed to fetch leaderboard' }, { status: 500 });
-        }
+        // Query top winners from Convex
+        const leaderboardData = await convex.query(api.bets.getLeaderboard, { limit: 100 }); // Get more for better stats
 
         // Aggregate per wallet
         const walletStats: Record<string, {
@@ -35,7 +27,7 @@ export async function GET(request: NextRequest) {
             net_profit: number;
         }> = {};
 
-        (data || []).forEach((row: any) => {
+        leaderboardData.forEach((row: any) => {
             const addr = row.wallet_address;
             if (!walletStats[addr]) {
                 walletStats[addr] = {
@@ -49,10 +41,10 @@ export async function GET(request: NextRequest) {
                 };
             }
             walletStats[addr].total_bets += 1;
-            walletStats[addr].total_wagered += parseFloat(row.amount) || 0;
+            walletStats[addr].total_wagered += row.amount || 0;
             if (row.won) {
                 walletStats[addr].wins += 1;
-                walletStats[addr].total_payout += parseFloat(row.payout) || 0;
+                walletStats[addr].total_payout += row.payout || 0;
             } else {
                 walletStats[addr].losses += 1;
             }
@@ -69,8 +61,9 @@ export async function GET(request: NextRequest) {
             .slice(0, limit);
 
         return NextResponse.json({ leaderboard });
-    } catch (error) {
-        console.error('Error fetching leaderboard:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    } catch (error: any) {
+        console.error('Error fetching leaderboard from Convex:', error);
+        return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
     }
 }
+

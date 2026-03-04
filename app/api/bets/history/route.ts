@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase/client';
+import { convex, api } from '@/lib/convex-client';
 
 export async function GET(request: NextRequest) {
     try {
@@ -16,21 +16,15 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Missing wallet parameter' }, { status: 400 });
         }
 
-        const { data, error } = await supabase
-            .from('bet_history')
-            .select('*')
-            .eq('wallet_address', wallet.toLowerCase())
-            .order('resolved_at', { ascending: false })
-            .limit(limit);
-
-        if (error) {
-            console.error('Supabase fetch error:', error);
-            return NextResponse.json({ error: 'Failed to fetch bets' }, { status: 500 });
-        }
+        const data = await convex.query(api.bets.getBetHistory, {
+            wallet_address: wallet.toLowerCase(),
+            limit
+        });
 
         return NextResponse.json({ bets: data || [] });
-    } catch (error) {
-        console.error('Error fetching bet history:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    } catch (error: any) {
+        console.error('Error fetching bet history from Convex:', error);
+        return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
     }
 }
+
