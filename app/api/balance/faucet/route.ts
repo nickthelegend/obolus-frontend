@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { convex, api } from '@/lib/convex-client';
+import { normalizeAddress } from '@/lib/utils/address';
 
 interface FaucetRequest {
     userAddress: string;
@@ -13,7 +14,8 @@ interface FaucetRequest {
 export async function POST(request: NextRequest) {
     try {
         const body: FaucetRequest = await request.json();
-        const { userAddress, amount } = body;
+        const userAddress = normalizeAddress(body.userAddress);
+        const { amount } = body;
 
         if (!userAddress) {
             return NextResponse.json(

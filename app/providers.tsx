@@ -29,22 +29,29 @@ export function Providers({ children }: { children: React.ReactNode }) {
     if (initialized.current) return;
     initialized.current = true;
 
-    const initializeApp = async () => {
-      try {
-        const { updateAllPrices, loadTargetCells, startGlobalPriceFeed } = useOverflowStore.getState();
+    let balanceInterval: NodeJS.Timeout;
 
-        await loadTargetCells().catch(console.error);
-        const stopPriceFeed = startGlobalPriceFeed(updateAllPrices);
+    const init = async () => {
+      const { initializeStore, useOverflowStore } = await import('@/lib/store');
+      await initializeStore();
+      setIsReady(true);
 
-        setIsReady(true);
-        return () => { if (stopPriceFeed) stopPriceFeed(); };
-      } catch (error) {
-        console.error('Error initializing app:', error);
-        setIsReady(true);
-      }
+      // Background polling for Convex balance sync
+      balanceInterval = setInterval(async () => {
+        const state = useOverflowStore.getState();
+        if (state.address && state.isConnected) {
+          await state.fetchBalance(state.address);
+        }
+      }, 10000);
     };
 
-    initializeApp();
+    init();
+
+    return () => {
+      const { cleanupStore } = require('@/lib/store');
+      cleanupStore();
+      if (balanceInterval) clearInterval(balanceInterval);
+    };
   }, []);
 
   if (!isReady) {
@@ -58,7 +65,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <StarknetConfig
       chains={[sepolia]}
-      provider={jsonRpcProvider({ rpc: () => ({ nodeUrl: "http://localhost:5050" }) })}
+      provider={jsonRpcProvider({ rpc: () => ({ nodeUrl: "http://127.0.0.1:5050/rpc" }) })}
       connectors={connectors}
       autoConnect
     >

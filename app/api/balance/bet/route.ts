@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { convex, api } from '@/lib/convex-client';
+import { normalizeAddress } from '@/lib/utils/address';
 
 interface BetRequest {
   userAddress: string;
@@ -17,7 +18,8 @@ export async function POST(request: NextRequest) {
   try {
     // Parse request body
     const body: BetRequest = await request.json();
-    const { userAddress, betAmount } = body;
+    const userAddress = normalizeAddress(body.userAddress);
+    const { betAmount } = body;
 
     // Validate required fields
     if (!userAddress || betAmount === undefined || betAmount === null) {

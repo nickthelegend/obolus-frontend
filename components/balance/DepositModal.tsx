@@ -5,7 +5,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { useOverflowStore } from '@/lib/store';
 import { useToast } from '@/lib/hooks/useToast';
-import { useAccount } from '@starknet-react/core';
+import { useAccount, useBalance } from '@starknet-react/core';
 
 interface DepositModalProps {
   isOpen: boolean;
@@ -29,7 +29,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
   const { address, account } = useAccount();
   const toast = useToast();
 
-  const currencySymbol = 'STRK';
+  const currencySymbol = 'USDT';
   const networkName = 'Starknet Devnet';
 
   // Quick select amounts
@@ -196,6 +196,16 @@ export const DepositModal: React.FC<DepositModalProps> = ({
     );
   }
 
+  // Real on-chain balance using Starknet React
+  const { data: balanceData } = useBalance({
+    address: address as `0x${string}`,
+    token: process.env.NEXT_PUBLIC_USDT_CONTRACT as `0x${string}`,
+    watch: true,
+    refetchInterval: 5000
+  });
+
+  const displayWalletBalance = balanceData ? parseFloat(balanceData.formatted) : 0;
+
   return (
     <Modal
       isOpen={isOpen}
@@ -218,7 +228,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
               className="w-4 h-4 object-contain"
             />
             <p className="text-white text-xl font-bold font-mono">
-              {walletBalance.toFixed(4)} {currencySymbol}
+              {displayWalletBalance.toFixed(4)} {currencySymbol}
             </p>
           </div>
         </div>

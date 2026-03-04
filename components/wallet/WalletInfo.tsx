@@ -1,23 +1,19 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Card } from '@/components/ui/Card';
 import { useStore } from '@/lib/store';
+import { useBalance, useAccount } from '@starknet-react/core';
 
 export const WalletInfo: React.FC = () => {
-  const address = useStore((state) => state.address);
+  const { address } = useAccount();
   const isConnected = !!address;
-  const walletBalance = useStore((state) => state.walletBalance);
-  const refreshWalletBalance = useStore((state) => state.refreshWalletBalance);
 
-  // Polling for balance updates
-  useEffect(() => {
-    if (isConnected && address) {
-      refreshWalletBalance();
-      const interval = setInterval(() => {
-        refreshWalletBalance();
-      }, 10000); // Poll every 10s
-      return () => clearInterval(interval);
-    }
-  }, [isConnected, address]);
+  // Real on-chain balance using Starknet React
+  const { data: balanceData, isLoading: isBalanceLoading } = useBalance({
+    address: address as `0x${string}`,
+    token: process.env.NEXT_PUBLIC_USDT_CONTRACT as `0x${string}`,
+    watch: true,
+    refetchInterval: 5000
+  });
 
   if (!isConnected || !address) {
     return null;
@@ -29,9 +25,9 @@ export const WalletInfo: React.FC = () => {
     return `${addr.slice(0, 6)}...${addr.slice(-6)}`;
   };
 
-  const currencySymbol = 'STRK';
+  const currencySymbol = 'USDT';
   const networkName = 'Starknet';
-  const balance = walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const balance = balanceData ? parseFloat(balanceData.formatted).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00';
 
   return (
     <Card className="min-w-[200px] border border-white/10 !bg-black/40 backdrop-blur-md">

@@ -422,7 +422,16 @@ export function PerpTerminal() {
                     {/* Collateral Status */}
                     <div className="bg-white/5 border border-white/10 rounded-xl p-4">
                         <div className="flex justify-between items-center mb-2">
-                            <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Available Margin</span>
+                            <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest flex items-center gap-2">
+                                Available Margin
+                                <button
+                                    onClick={() => address && useStore.getState().fetchBalance(address)}
+                                    className="p-1 hover:bg-white/10 rounded-md transition-colors"
+                                    title="Refresh House Balance"
+                                >
+                                    <Activity className={`w-3 h-3 ${isLoading ? 'animate-pulse text-stark-orange' : 'text-muted-foreground'}`} />
+                                </button>
+                            </span>
                             <motion.span
                                 animate={isSurging ? { scale: [1, 1.2, 1], color: ['#fff', '#f97316', '#fff'] } : {}}
                                 className="text-white font-mono font-bold flex items-center gap-1"

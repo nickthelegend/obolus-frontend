@@ -65,12 +65,23 @@ export function IdentityOnboarding({ onDerived }: { onDerived: (privKey: string)
         }
     };
 
+    if (status === 'connecting' || status === 'reconnecting') {
+        return (
+            <div className="flex flex-col items-center justify-center p-12 bg-card/50 backdrop-blur-xl rounded-3xl border border-primary/20 text-center">
+                <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
+                <h3 className="text-xl font-bold mb-2">Connecting Wallet...</h3>
+                <p className="text-muted-foreground">Waiting for your wallet to respond.</p>
+            </div>
+        );
+    }
+
     if (status !== 'connected') {
         return (
             <div className="flex flex-col items-center justify-center p-8 bg-card rounded-2xl border border-border/50 text-center">
                 <ShieldAlert className="w-12 h-12 text-muted-foreground mb-4" />
                 <h3 className="text-xl font-bold mb-2">Connect Wallet</h3>
                 <p className="text-muted-foreground max-w-xs">Connecting your Starknet wallet is required to derive your private Obolus identity.</p>
+                <p className="text-xs text-muted-foreground/60 mt-2 font-mono">Status: {status}</p>
             </div>
         );
     }

@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { convex, api } from '@/lib/convex-client';
+import { normalizeAddress } from '@/lib/utils/address';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ address: string }> }
 ) {
   try {
-    const { address } = await params;
+    const { address: rawAddress } = await params;
+    const address = normalizeAddress(rawAddress);
 
     if (!address) {
       return NextResponse.json({ error: 'Address required' }, { status: 400 });

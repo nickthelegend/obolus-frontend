@@ -1,17 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useAccount, useDisconnect } from "@starknet-react/core";
+import { useAccount, useDisconnect, useConnect } from "@starknet-react/core";
 import { Copy, Check, ExternalLink, LogOut, ChevronDown } from "lucide-react";
-import ConnectModal from "@/components/wallet/ConnectModal";
+import { connect as connectKit, disconnect as disconnectKit } from "starknetkit";
 import { useStore } from "@/lib/store";
 
 export default function ConnectButton() {
     const { address, isConnected, isConnecting } = useAccount();
-    const { disconnect } = useDisconnect();
-    const { setAddress, setIsConnected } = useStore();
+    const { connect: connectReact } = useConnect();
+    const { disconnect: disconnectReact } = useDisconnect();
+    const { setAddress, setIsConnected, fetchBalance } = useStore();
 
-    const [showWalletModal, setShowWalletModal] = useState(false);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [copied, setCopied] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -20,17 +20,15 @@ export default function ConnectButton() {
 
     // Connect/Disconnect sync with store
     useEffect(() => {
-        console.log("ConnectButton Account State:", { isConnected, address, isConnecting });
         if (isConnected && address) {
-            console.log("Syncing address to store:", address);
             setAddress(address);
             setIsConnected(true);
+            fetchBalance(address);
         } else if (!isConnecting) {
-            console.log("Not connected - clearing store address");
             setAddress(null);
             setIsConnected(false);
         }
-    }, [isConnected, address, isConnecting, setAddress, setIsConnected]);
+    }, [isConnected, address, isConnecting, setAddress, setIsConnected, fetchBalance]);
 
     // Close dropdown on outside click
     useEffect(() => {
@@ -51,15 +49,34 @@ export default function ConnectButton() {
         }
     };
 
-    const handleDisconnect = () => {
-        disconnect();
-        setDropdownOpen(false);
+    const handleDisconnect = async () => {
+        try {
+            await disconnectReact();
+            await disconnectKit({ clearLastWallet: true });
+            setDropdownOpen(false);
+        } catch (e) {
+            console.error("Disconnect error:", e);
+        }
+    };
+
+    const handleConnectClick = async () => {
+        try {
+            const { wallet, connector } = await connectKit({
+                modalMode: "alwaysAsk",
+                modalTheme: "dark",
+            });
+
+            if (wallet && connector) {
+                // Sync with starknet-react
+                await connectReact({ connector: connector as any });
+            }
+        } catch (e) {
+            console.error("Connection error:", e);
+        }
     };
 
     return (
         <>
-            <ConnectModal isOpen={showWalletModal} onClose={() => setShowWalletModal(false)} />
-
             {/* Loading state */}
             {isConnecting ? (
                 <button disabled className="h-10 px-4 sm:px-5 rounded-xl bg-muted animate-pulse text-xs sm:text-sm font-medium text-muted-foreground border border-border">
@@ -67,7 +84,7 @@ export default function ConnectButton() {
                 </button>
             ) : !isConnected ? (
                 <button
-                    onClick={() => setShowWalletModal(true)}
+                    onClick={handleConnectClick}
                     className="h-10 px-4 sm:px-5 rounded-xl text-xs sm:text-sm font-bold bg-primary hover:bg-primary/90 text-primary-foreground transition-all shadow-lg shadow-primary/20"
                 >
                     Connect Wallet

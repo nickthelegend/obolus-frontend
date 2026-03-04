@@ -29,7 +29,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
   const { address } = useAccount();
   const toast = useToast();
 
-  const currencySymbol = 'STRK';
+  const currencySymbol = 'USDT';
   const networkName = 'Starknet Devnet';
 
   // Reset state when modal opens/closes

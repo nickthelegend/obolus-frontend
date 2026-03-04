@@ -7,6 +7,7 @@
  */
 
 import { StateCreator } from "zustand";
+import { normalizeAddress } from "../utils/address";
 
 export interface BalanceState {
   // State
@@ -54,7 +55,7 @@ export const createBalanceSlice: StateCreator<BalanceState> = (set, get) => ({
       return;
     }
 
-    const formattedAddress = address;
+    const formattedAddress = normalizeAddress(address);
 
     try {
       set({ isLoading: true, error: null });
@@ -132,7 +133,7 @@ export const createBalanceSlice: StateCreator<BalanceState> = (set, get) => ({
    * @param txHash - Transaction hash for audit trail
    */
   depositFunds: async (address: string, amount: number, txHash: string) => {
-    const formattedAddress = address;
+    const formattedAddress = normalizeAddress(address);
 
     try {
       set({ isLoading: true, error: null });
@@ -184,7 +185,7 @@ export const createBalanceSlice: StateCreator<BalanceState> = (set, get) => ({
    * @param txHash - Transaction hash for audit trail
    */
   withdrawFunds: async (address: string, amount: number) => {
-    const formattedAddress = address;
+    const formattedAddress = normalizeAddress(address);
 
     try {
       set({ isLoading: true, error: null });
@@ -232,6 +233,7 @@ export const createBalanceSlice: StateCreator<BalanceState> = (set, get) => ({
    */
   requestFaucet: async (address: string) => {
     if (!address) return;
+    const formattedAddress = normalizeAddress(address);
 
     try {
       set({ isLoading: true, error: null });
@@ -242,16 +244,14 @@ export const createBalanceSlice: StateCreator<BalanceState> = (set, get) => ({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userAddress: address,
-          amount: 1000, // Fixed faucet amount
+          userAddress: formattedAddress,
+          amount: 1000,
         }),
       });
 
       if (!response.ok) {
-        // Fallback for demo/test environments where endpoint might not exist
-        const { houseBalance } = get();
-        set({ houseBalance: houseBalance + 1000, isLoading: false });
-        return;
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Faucet failed with status ${response.status}`);
       }
 
       const data = await response.json();
@@ -261,9 +261,12 @@ export const createBalanceSlice: StateCreator<BalanceState> = (set, get) => ({
         error: null
       });
     } catch (error) {
-      // Optimistic update for local testing if API fails
-      const { houseBalance } = get();
-      set({ houseBalance: houseBalance + 1000, isLoading: false });
+      console.error('Error requesting faucet:', error);
+      set({
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Faucet request failed'
+      });
+      throw error;
     }
   },
 
