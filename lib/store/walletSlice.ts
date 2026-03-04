@@ -19,6 +19,7 @@ export interface WalletState {
   disconnect: () => void;
   clearError: () => void;
   setConnectModalOpen: (open: boolean) => void;
+  refreshWalletBalance: () => Promise<void>;
 
   // Setters for wallet integration
   setAddress: (address: string | null) => void;
@@ -84,5 +85,14 @@ export const createWalletSlice: StateCreator<WalletState> = (set, get) => ({
    */
   setIsConnected: (connected: boolean) => {
     set({ isConnected: connected });
+  },
+
+  /**
+   * Refresh wallet balance
+   * Note: This is now a stub as balance is ideally handled by starknet-react
+   */
+  refreshWalletBalance: async () => {
+    // Stub for compatibility with components
+    console.log("Refreshing wallet balance...");
   },
 });

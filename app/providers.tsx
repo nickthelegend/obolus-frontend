@@ -60,6 +60,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       chains={[sepolia]}
       provider={jsonRpcProvider({ rpc: () => ({ nodeUrl: "http://localhost:5050" }) })}
       connectors={connectors}
+      autoConnect
     >
       <QueryClientProvider client={queryClient}>
         {children}
