@@ -88,7 +88,7 @@ function checkEnvironmentVariables(): VerificationResult {
   };
 
   const envPath = path.join(process.cwd(), '.env');
-  
+
   if (!fs.existsSync(envPath)) {
     result.checks.push({
       name: '.env file exists',
@@ -99,15 +99,14 @@ function checkEnvironmentVariables(): VerificationResult {
   }
 
   const envContent = fs.readFileSync(envPath, 'utf-8');
-  
+
   const requiredVars = [
     'NEXT_PUBLIC_SUI_NETWORK',
     'NEXT_PUBLIC_SUI_RPC_ENDPOINT',
     'NEXT_PUBLIC_TREASURY_PACKAGE_ID',
     'NEXT_PUBLIC_TREASURY_OBJECT_ID',
     'NEXT_PUBLIC_USDC_TYPE',
-    'NEXT_PUBLIC_SUPABASE_URL',
-    'NEXT_PUBLIC_SUPABASE_ANON_KEY'
+    'NEXT_PUBLIC_CONVEX_URL'
   ];
 
   for (const varName of requiredVars) {
@@ -115,14 +114,14 @@ function checkEnvironmentVariables(): VerificationResult {
     const match = envContent.match(regex);
     const exists = match !== null;
     const hasValue = exists && match[1].trim() !== '' && !match[1].includes('your-');
-    
+
     result.checks.push({
       name: varName,
       passed: hasValue,
-      message: hasValue 
-        ? '✓ Configured' 
-        : exists 
-          ? '⚠ Placeholder value (needs configuration)' 
+      message: hasValue
+        ? '✓ Configured'
+        : exists
+          ? '⚠ Placeholder value (needs configuration)'
           : '✗ Not found'
     });
   }
@@ -143,28 +142,28 @@ function checkSuiIntegration(): VerificationResult {
   const depositModalPath = path.join(process.cwd(), 'components/balance/DepositModal.tsx');
   if (fs.existsSync(depositModalPath)) {
     const content = fs.readFileSync(depositModalPath, 'utf-8');
-    
+
     result.checks.push({
       name: 'DepositModal uses @mysten/dapp-kit',
       passed: content.includes('@mysten/dapp-kit'),
-      message: content.includes('@mysten/dapp-kit') 
-        ? '✓ Using Sui SDK' 
+      message: content.includes('@mysten/dapp-kit')
+        ? '✓ Using Sui SDK'
         : '✗ Not using Sui SDK'
     });
 
     result.checks.push({
       name: 'DepositModal uses buildDepositTransaction',
       passed: content.includes('buildDepositTransaction'),
-      message: content.includes('buildDepositTransaction') 
-        ? '✓ Transaction building implemented' 
+      message: content.includes('buildDepositTransaction')
+        ? '✓ Transaction building implemented'
         : '✗ Transaction building not found'
     });
 
     result.checks.push({
       name: 'DepositModal shows USDC (not FLOW)',
       passed: content.includes('USDC') && !content.includes('FLOW'),
-      message: content.includes('USDC') 
-        ? '✓ Token migration complete' 
+      message: content.includes('USDC')
+        ? '✓ Token migration complete'
         : '✗ Still references FLOW'
     });
   }
@@ -173,28 +172,28 @@ function checkSuiIntegration(): VerificationResult {
   const withdrawModalPath = path.join(process.cwd(), 'components/balance/WithdrawModal.tsx');
   if (fs.existsSync(withdrawModalPath)) {
     const content = fs.readFileSync(withdrawModalPath, 'utf-8');
-    
+
     result.checks.push({
       name: 'WithdrawModal uses @mysten/dapp-kit',
       passed: content.includes('@mysten/dapp-kit'),
-      message: content.includes('@mysten/dapp-kit') 
-        ? '✓ Using Sui SDK' 
+      message: content.includes('@mysten/dapp-kit')
+        ? '✓ Using Sui SDK'
         : '✗ Not using Sui SDK'
     });
 
     result.checks.push({
       name: 'WithdrawModal uses buildWithdrawalTransaction',
       passed: content.includes('buildWithdrawalTransaction'),
-      message: content.includes('buildWithdrawalTransaction') 
-        ? '✓ Transaction building implemented' 
+      message: content.includes('buildWithdrawalTransaction')
+        ? '✓ Transaction building implemented'
         : '✗ Transaction building not found'
     });
 
     result.checks.push({
       name: 'WithdrawModal validates balance before transaction',
       passed: content.includes('houseBalance') && content.includes('validateAmount'),
-      message: content.includes('houseBalance') 
-        ? '✓ Balance validation implemented' 
+      message: content.includes('houseBalance')
+        ? '✓ Balance validation implemented'
         : '✗ Balance validation not found'
     });
   }
@@ -214,44 +213,44 @@ function checkEventListener(): VerificationResult {
   const eventListenerPath = path.join(process.cwd(), 'lib/sui/event-listener.ts');
   if (fs.existsSync(eventListenerPath)) {
     const content = fs.readFileSync(eventListenerPath, 'utf-8');
-    
+
     result.checks.push({
       name: 'Event listener has startEventListener function',
       passed: content.includes('startEventListener'),
-      message: content.includes('startEventListener') 
-        ? '✓ Function implemented' 
+      message: content.includes('startEventListener')
+        ? '✓ Function implemented'
         : '✗ Function not found'
     });
 
     result.checks.push({
       name: 'Event listener handles DepositEvent',
       passed: content.includes('handleDepositEvent') && content.includes('DepositEvent'),
-      message: content.includes('handleDepositEvent') 
-        ? '✓ Deposit event handling implemented' 
+      message: content.includes('handleDepositEvent')
+        ? '✓ Deposit event handling implemented'
         : '✗ Deposit event handling not found'
     });
 
     result.checks.push({
       name: 'Event listener handles WithdrawalEvent',
       passed: content.includes('handleWithdrawalEvent') && content.includes('WithdrawalEvent'),
-      message: content.includes('handleWithdrawalEvent') 
-        ? '✓ Withdrawal event handling implemented' 
+      message: content.includes('handleWithdrawalEvent')
+        ? '✓ Withdrawal event handling implemented'
         : '✗ Withdrawal event handling not found'
     });
 
     result.checks.push({
-      name: 'Event listener updates Supabase',
-      passed: content.includes('updateUserBalance') && content.includes('supabase'),
-      message: content.includes('updateUserBalance') 
-        ? '✓ Supabase integration implemented' 
-        : '✗ Supabase integration not found'
+      name: 'Event listener updates Convex',
+      passed: content.includes('updateUserBalance') && content.includes('convex'),
+      message: content.includes('updateUserBalance')
+        ? '✓ Convex integration implemented'
+        : '✗ Convex integration not found'
     });
 
     result.checks.push({
       name: 'Event listener has reconnection logic',
       passed: content.includes('reconnect') || content.includes('retry'),
       message: content.includes('reconnect') || content.includes('retry')
-        ? '✓ Reconnection logic implemented' 
+        ? '✓ Reconnection logic implemented'
         : '✗ Reconnection logic not found'
     });
   }
@@ -270,7 +269,7 @@ function checkTreasuryContract(): VerificationResult {
 
   const contractPath = path.join(process.cwd(), 'sui-contracts/sources/treasury.move');
   const exists = fs.existsSync(contractPath);
-  
+
   result.checks.push({
     name: 'Treasury contract file exists',
     passed: exists,
@@ -279,36 +278,36 @@ function checkTreasuryContract(): VerificationResult {
 
   if (exists) {
     const content = fs.readFileSync(contractPath, 'utf-8');
-    
+
     result.checks.push({
       name: 'Contract has deposit function',
       passed: content.includes('public entry fun deposit'),
-      message: content.includes('public entry fun deposit') 
-        ? '✓ Deposit function implemented' 
+      message: content.includes('public entry fun deposit')
+        ? '✓ Deposit function implemented'
         : '✗ Deposit function not found'
     });
 
     result.checks.push({
       name: 'Contract has withdraw function',
       passed: content.includes('public entry fun withdraw'),
-      message: content.includes('public entry fun withdraw') 
-        ? '✓ Withdraw function implemented' 
+      message: content.includes('public entry fun withdraw')
+        ? '✓ Withdraw function implemented'
         : '✗ Withdraw function not found'
     });
 
     result.checks.push({
       name: 'Contract emits DepositEvent',
       passed: content.includes('DepositEvent'),
-      message: content.includes('DepositEvent') 
-        ? '✓ DepositEvent defined' 
+      message: content.includes('DepositEvent')
+        ? '✓ DepositEvent defined'
         : '✗ DepositEvent not found'
     });
 
     result.checks.push({
       name: 'Contract emits WithdrawalEvent',
       passed: content.includes('WithdrawalEvent'),
-      message: content.includes('WithdrawalEvent') 
-        ? '✓ WithdrawalEvent defined' 
+      message: content.includes('WithdrawalEvent')
+        ? '✓ WithdrawalEvent defined'
         : '✗ WithdrawalEvent not found'
     });
   }
@@ -329,37 +328,37 @@ function checkTreasuryContract(): VerificationResult {
 /**
  * Check 7: Verify Supabase Schema
  */
-function checkSupabaseSchema(): VerificationResult {
+function checkConvexSchema(): VerificationResult {
   const result: VerificationResult = {
-    category: 'Supabase Database Schema',
+    category: 'Convex Database Schema',
     checks: []
   };
 
-  const migrationsDir = path.join(process.cwd(), 'supabase/migrations');
-  
-  if (!fs.existsSync(migrationsDir)) {
+  const convexDir = path.join(process.cwd(), 'convex');
+
+  if (!fs.existsSync(convexDir)) {
     result.checks.push({
-      name: 'Migrations directory exists',
+      name: 'Convex directory exists',
       passed: false,
-      message: '✗ Migrations directory not found'
+      message: '✗ Convex directory not found'
     });
     return result;
   }
 
-  const requiredMigrations = [
-    '001_create_user_balances.sql',
-    '002_create_balance_audit_log.sql',
-    '003_create_balance_procedures.sql'
+  const requiredFiles = [
+    'schema.ts',
+    'users.ts',
+    'bets.ts'
   ];
 
-  for (const migration of requiredMigrations) {
-    const migrationPath = path.join(migrationsDir, migration);
-    const exists = fs.existsSync(migrationPath);
-    
+  for (const file of requiredFiles) {
+    const filePath = path.join(convexDir, file);
+    const exists = fs.existsSync(filePath);
+
     result.checks.push({
-      name: migration,
+      name: file,
       passed: exists,
-      message: exists ? '✓ Migration file exists' : '✗ Migration file not found'
+      message: exists ? '✓ File exists' : '✗ File not found'
     });
   }
 
@@ -378,7 +377,7 @@ function runVerification() {
   results.push(checkSuiIntegration());
   results.push(checkEventListener());
   results.push(checkTreasuryContract());
-  results.push(checkSupabaseSchema());
+  results.push(checkConvexSchema());
 
   // Print results
   let totalChecks = 0;
@@ -388,7 +387,7 @@ function runVerification() {
   for (const result of results) {
     console.log(`\n${result.category}:`);
     console.log('─'.repeat(50));
-    
+
     for (const check of result.checks) {
       console.log(`  ${check.message} - ${check.name}`);
       totalChecks++;
@@ -408,7 +407,7 @@ function runVerification() {
   console.log(`Passed: ${passedChecks} ✓`);
   console.log(`Warnings: ${warningChecks} ⚠`);
   console.log(`Failed: ${totalChecks - passedChecks - warningChecks} ✗`);
-  
+
   const successRate = ((passedChecks / totalChecks) * 100).toFixed(1);
   const successRateNum = parseFloat(successRate);
   console.log(`Success Rate: ${successRate}%`);
@@ -418,19 +417,18 @@ function runVerification() {
   console.log('RECOMMENDATIONS');
   console.log('='.repeat(50));
 
-  const hasSupabaseWarnings = results.some(r => 
-    r.category === 'Environment Variables' && 
-    r.checks.some(c => c.name.includes('SUPABASE') && !c.passed)
+  const hasConvexWarnings = results.some(r =>
+    r.category === 'Environment Variables' &&
+    r.checks.some(c => c.name.includes('CONVEX') && !c.passed)
   );
 
-  if (hasSupabaseWarnings) {
-    console.log('\n⚠ Supabase Configuration:');
-    console.log('  - Update NEXT_PUBLIC_SUPABASE_URL with your Supabase project URL');
-    console.log('  - Update NEXT_PUBLIC_SUPABASE_ANON_KEY with your Supabase anon key');
-    console.log('  - Run: npm run db:verify to test the connection');
+  if (hasConvexWarnings) {
+    console.log('\n⚠ Convex Configuration:');
+    console.log('  - Update NEXT_PUBLIC_CONVEX_URL with your Convex deployment URL');
+    console.log('  - Run: npx convex dev to test the connection');
   }
 
-  const failedChecks = results.flatMap(r => 
+  const failedChecks = results.flatMap(r =>
     r.checks.filter(c => !c.passed && !c.message.includes('⚠'))
   );
 
