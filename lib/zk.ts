@@ -132,4 +132,28 @@ export async function generateTradeProof(
     }
 }
 
+/**
+ * Create a dummy proof payload for use with the Mock Verifier.
+ * This satisfies the contract's amount and recipient checks if a real ZK proof isn't needed.
+ */
+export function generateMockProof(amount: bigint | string | number, recipient: string, commitment: string = "0", nullifier: string = "0"): string[] {
+    const amountBN = BigInt(amount);
+    const recipientBN = BigInt(recipient);
+    const commitmentBN = BigInt(commitment);
+    const nullifierBN = BigInt(nullifier);
+
+    const mask128 = (1n << 128n) - 1n;
+
+    return [
+        '0x' + (amountBN & mask128).toString(16),
+        '0x' + (amountBN >> 128n).toString(16),
+        '0x' + (recipientBN & mask128).toString(16),
+        '0x' + (recipientBN >> 128n).toString(16),
+        '0x' + (commitmentBN & mask128).toString(16),
+        '0x' + (commitmentBN >> 128n).toString(16),
+        '0x' + (nullifierBN & mask128).toString(16),
+        '0x' + (nullifierBN >> 128n).toString(16)
+    ];
+}
+
 

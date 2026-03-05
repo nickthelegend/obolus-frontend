@@ -28,10 +28,10 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Validate win amount is positive
-        if (winAmount <= 0) {
+        // Validate win amount is not negative
+        if (winAmount < 0) {
             return NextResponse.json(
-                { error: 'Win amount must be greater than zero' },
+                { error: 'Win amount cannot be negative' },
                 { status: 400 }
             );
         }

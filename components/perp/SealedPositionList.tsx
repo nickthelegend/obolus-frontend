@@ -93,7 +93,7 @@ export function SealedPositionList({ tongoPrivKey, filterMode }: { tongoPrivKey:
                                 )}
                                 {bet.mode === 'perp' && (
                                     <button
-                                        onClick={() => address && closePerpPosition(bet.id, address)}
+                                        onClick={() => address && account && closePerpPosition(bet.id, address, account)}
                                         className="px-3 py-1 bg-white/10 hover:bg-red-500/20 hover:text-red-500 border border-white/10 rounded-md text-[10px] font-black uppercase tracking-widest transition-all"
                                     >
                                         Close

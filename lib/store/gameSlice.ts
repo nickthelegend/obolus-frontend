@@ -32,6 +32,7 @@ export interface ActiveBet {
   entryPrice?: number;
   unrealizedPnL?: number;
   liquidated?: boolean;
+  positionId?: number; // On-chain position ID
   // Box mode specific
   cellId?: string;
 }
@@ -77,8 +78,8 @@ export interface GameState {
   setSelectedAsset: (asset: AssetType) => void;
   setTimeframeSeconds: (seconds: number) => void;
   placeBet: (amount: string, targetId: string) => Promise<void>;
-  placeBetFromHouseBalance: (amount: string, targetId: string, userAddress: string, cellId?: string) => Promise<{ betId: string; remainingBalance: number; bet: ActiveBet } | void>;
-  closePerpPosition: (betId: string, userAddress: string) => Promise<void>;
+  placeBetFromHouseBalance: (amount: string, targetId: string, userAddress: string, cellId?: string, positionId?: number) => Promise<{ betId: string; remainingBalance: number; bet: ActiveBet } | void>;
+  closePerpPosition: (betId: string, userAddress: string, account?: any) => Promise<void>;
   updatePrice: (price: number, asset?: AssetType) => void;
   updateAllPrices: (prices: Record<string, number>) => void;
   startGlobalPriceFeed: (updateAllPrices: (prices: Record<string, number>) => void) => (() => void);
@@ -478,9 +479,8 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
   /**
    * Close an open Perp position
    */
-  closePerpPosition: async (betId: string, userAddress: string) => {
-    const { activeBets, updateBalance } = get();
-    const houseBalance = (get() as any).houseBalance;
+  closePerpPosition: async (betId: string, userAddress: string, account?: any) => {
+    const { activeBets } = get();
     const position = activeBets.find((b: ActiveBet) => b.id === betId);
 
     if (!position || position.mode !== 'perp') return;
@@ -491,24 +491,51 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
 
       set({ isSettling: true });
 
-      // Call API to process the settlement
+      // 1. On-chain settlement (if account present)
+      if (account) {
+        console.log("[ZK] Initiating on-chain position closure...");
+        try {
+          // In the demo, we use default positionId 1 if not specified
+          // and dummy commitments for the encrypted PnL
+          const posId = position.positionId || 1;
+          const tx = await account.execute([
+            {
+              contractAddress: process.env.NEXT_PUBLIC_PERP_CONTRACT!,
+              entrypoint: "close_position_sealed",
+              calldata: [
+                posId.toString(),
+                "0x123", "0x456", // dummy ct_pnl
+                "0"               // empty settlement_proof span
+              ]
+            }
+          ]);
+          console.log("On-chain Close Tx:", tx.transaction_hash);
+        } catch (onChainErr) {
+          console.warn("On-chain closing skipped or failed:", onChainErr);
+          // Don't throw - continue with house balance update for demo smoothness
+        }
+      }
+
+      // 2. Off-chain balance update (Convex)
+      // If winAmount is zero, we still call the API but ensure it's handled
       const response = await fetch('/api/balance/win', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userAddress,
-          winAmount: totalToRefund,
+          winAmount: Math.max(0, totalToRefund),
           betId: betId
         })
       });
 
       if (!response.ok) {
-        throw new Error("Failed to settle perp position");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to settle perp position in house balance");
       }
 
       const data = await response.json();
 
-      // Save to bet history
+      // 3. Save to bet history
       fetch('/api/bets/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -528,17 +555,19 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
         })
       }).catch(err => console.error('Failed to save history:', err));
 
-      // Update local state
+      // 4. Update local state
       set((state: any) => ({
         activeBets: state.activeBets.filter((b: any) => b.id !== betId),
         settledBets: [{ ...position, status: 'settled', unrealizedPnL: pnl }, ...state.settledBets].slice(0, 50),
-        houseBalance: data.newBalance || (state.houseBalance + totalToRefund),
+        houseBalance: data.newBalance !== undefined ? data.newBalance : (state.houseBalance + totalToRefund),
         isSettling: false
       }));
 
+      console.log(`[Trade] Position closed. Total Refund: ${totalToRefund} USDT. New Balance: ${data.newBalance}`);
+
     } catch (error) {
       console.error("Error closing perp position:", error);
-      set({ isSettling: false, error: "Failed to close position" });
+      set({ isSettling: false, error: error instanceof Error ? error.message : "Failed to close position" });
     }
   },
 

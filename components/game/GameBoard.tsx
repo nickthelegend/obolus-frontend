@@ -5,13 +5,20 @@ import { useStore } from '@/lib/store';
 import { LiveChart } from './';
 import { BalanceDisplay } from '@/components/balance';
 import { useToast } from '@/lib/hooks/useToast';
+import { useAccount } from '@starknet-react/core';
+import { CallData, uint256 } from 'starknet';
+import { EncryptionModal } from '../perp/EncryptionModal';
+import { encryptOrderData } from '@/lib/tongo';
+import { generateTradeProof, generateMockProof } from '@/lib/zk';
+import PERP_ABI from '@/lib/perp_abi_clean.json';
 
+import { Shield } from 'lucide-react';
 
 export const GameBoard: React.FC = () => {
+  const { account } = useAccount();
   const {
     address,
     isConnected,
-    network,
     walletBalance,
     gameMode,
     setGameMode,
@@ -52,6 +59,17 @@ export const GameBoard: React.FC = () => {
   const [betAmount, setBetAmount] = useState<string>('0.1');
   const [selectedDuration, setSelectedDuration] = useState<number>(30);
   const [isPanelOpen, setIsPanelOpen] = useState(true);
+
+  // ZK/Tongo State
+  const [isSealed, setIsSealed] = useState(true);
+  const [isEncryptionModalOpen, setIsEncryptionModalOpen] = useState(false);
+  const [encryptionModalTitle, setEncryptionModalTitle] = useState("Shielding Order Data");
+  const [encryptionCompleteCallback, setEncryptionCompleteCallback] = useState<(() => Promise<void>) | null>(null);
+  const tongoPrivKey = useStore(state => state.tongoPrivKey);
+  const currentPrice = useStore(state => state.currentPrice);
+  const houseBalance = useStore(state => (state as any).houseBalance);
+  const [isPlacing, setIsPlacing] = useState(false);
+  const [ctPayload, setCtPayload] = useState<{ sizeL: string, sizeR: string, priceL: string, priceR: string }>({ sizeL: "0x0", sizeR: "0x0", priceL: "0x0", priceR: "0x0" });
 
   const [blitzCountdown, setBlitzCountdown] = useState<string>('');
   const [blitzTimeRemaining, setBlitzTimeRemaining] = useState<string>('');
@@ -136,18 +154,141 @@ export const GameBoard: React.FC = () => {
     }
   };
 
-  const handleObolusBet = async (direction: 'UP' | 'DOWN') => {
-    if (!address || !isConnected || gameMode !== 'binomo') return;
+  const USDT_ADDRESS = process.env.NEXT_PUBLIC_USDT_CONTRACT || "0x00c73361df3e839e9432608f654f593cd3a48e7e172fe42fcdf549f33ae2a512";
 
+  const handleObolusBet = async (direction: 'UP' | 'DOWN') => {
+    if (!address || !account || isPlacing) return;
+
+    const tradePrice = currentPrice;
+    const collateralAmount = parseFloat(betAmount);
+    const collateralBaseUnits = BigInt(Math.floor(collateralAmount * 1e6)); // 1e6 for USDT
+
+    if (collateralAmount > houseBalance) {
+      toast.error(`Insufficient Balance. Have: ${houseBalance.toFixed(2)}, Need: ${collateralAmount.toFixed(2)}`);
+      return;
+    }
+
+    setIsPlacing(true);
+
+    if (isSealed && tongoPrivKey) {
+      try {
+        setEncryptionModalTitle("Shielding Options Bet");
+
+        // 1. Encrypt Size/Amount
+        const encryptedSize = await encryptOrderData(tongoPrivKey, collateralBaseUnits);
+
+        // 2. Encrypt Strike Price (current price for Binary Options)
+        const encryptedPrice = await encryptOrderData(tongoPrivKey, BigInt(Math.floor(tradePrice * 1e6)));
+
+        setCtPayload({
+          sizeL: encryptedSize.ct_L,
+          sizeR: encryptedSize.ct_R,
+          priceL: encryptedPrice.ct_L,
+          priceR: encryptedPrice.ct_R
+        });
+
+        // 3. Generate ZK Proof
+        console.log("[ZK] Generating Options Trade Proof...");
+        const zkProof = await generateTradeProof(
+          tongoPrivKey,
+          collateralBaseUnits.toString(),
+          address.toString()
+        );
+
+        const zkCalldata = zkProof?.calldata || [];
+        const commitment = zkProof?.commitment || "0";
+        const nullifier = zkProof?.nullifier || "0";
+
+        setEncryptionCompleteCallback(() => async () => {
+          setIsEncryptionModalOpen(false);
+          await executeOptionsTrade(
+            direction,
+            collateralAmount,
+            collateralBaseUnits,
+            encryptedSize.ct_L,
+            encryptedSize.ct_R,
+            encryptedPrice.ct_L,
+            encryptedPrice.ct_R,
+            zkCalldata,
+            commitment,
+            nullifier
+          );
+        });
+
+        setIsEncryptionModalOpen(true);
+      } catch (e) {
+        console.error("ZK/Encryption error:", e);
+        toast.error("Security Shield generation failed");
+        setIsPlacing(false);
+      }
+    } else {
+      // Unsealed fallback (plaintext)
+      const mockProof = generateMockProof(collateralBaseUnits, address);
+      await executeOptionsTrade(direction, collateralAmount, collateralBaseUnits, "0x0", "0x0", "0x0", "0x0", mockProof, "0", "0");
+    }
+  };
+
+  const executeOptionsTrade = async (
+    direction: 'UP' | 'DOWN',
+    collateralAmount: number,
+    collateralBaseUnits: bigint,
+    sizeL: string,
+    sizeR: string,
+    priceL: string,
+    priceR: string,
+    zkCalldata: string[],
+    commitment: string,
+    nullifier: string
+  ) => {
     try {
+      const perpContractAddress = process.env.NEXT_PUBLIC_PERP_CONTRACT!;
+
+      console.log("[Web3] Executing Options Trade on Starknet...");
+
+      // Execute on-chain transaction for security/deposit
+      const tx = await account!.execute([
+        {
+          contractAddress: USDT_ADDRESS,
+          entrypoint: "approve",
+          calldata: CallData.compile([perpContractAddress, uint256.bnToUint256(collateralBaseUnits)])
+        },
+        {
+          contractAddress: perpContractAddress,
+          entrypoint: "deposit_collateral",
+          calldata: CallData.compile([collateralBaseUnits.toString()])
+        },
+        {
+          contractAddress: perpContractAddress,
+          entrypoint: "open_position_sealed",
+          calldata: CallData.compile([
+            sizeL, sizeR,
+            priceL, priceR,
+            collateralBaseUnits.toString(),
+            zkCalldata,
+            uint256.bnToUint256(commitment),
+            uint256.bnToUint256(nullifier)
+          ])
+        }
+      ]);
+
+      console.log("[Web3] Transaction submitted:", tx.transaction_hash);
+      toast.success("Trade Shielded on Starknet!");
+
+      // Record in Obolus off-chain system (Convex)
       const multiplier = getMultiplier(selectedDuration);
       await placeBetFromHouseBalance(
-        betAmount,
+        collateralAmount.toFixed(4),
         `${direction}-${multiplier}-${selectedDuration}`,
-        address
+        address!,
+        undefined,
+        1 // Default position ID for demo
       );
-    } catch (err) {
-      console.error("Failed to place Obolus bet:", err);
+
+    } catch (err: any) {
+      console.error("Trade execution failed:", err);
+      toast.error(err.message || "Starknet transaction failed");
+    } finally {
+      setIsPlacing(false);
     }
   };
 
@@ -176,8 +317,7 @@ export const GameBoard: React.FC = () => {
 
       {/* Blitz Round Indicator - Top Right */}
       <div className="absolute top-12 sm:top-20 right-3 sm:right-6 z-30 pointer-events-auto">
-        <div className={`rounded-xl backdrop-blur-xl border shadow-lg overflow-hidden transition-all duration-500 ${isBlitzActive ? 'bg-gradient-to-br from-orange-500/20 via-red-500/20 to-yellow-500/20 border-orange-500/50 shadow-orange-500/30 animate-pulse' : 'bg-black/80 border-gray-700/50'
-          }`}>
+        <div className={`rounded-xl backdrop-blur-xl border shadow-lg overflow-hidden transition-all duration-500 ${isBlitzActive ? 'bg-gradient-to-br from-orange-500/20 via-red-500/20 to-yellow-500/20 border-orange-500/50 shadow-orange-500/30 animate-pulse' : 'bg-black/80 border-gray-700/50'}`}>
           <div className="px-3 py-2">
             {isBlitzActive ? (
               <div className="flex items-center gap-2">
@@ -203,8 +343,6 @@ export const GameBoard: React.FC = () => {
         </div>
       </div>
 
-      {/* Floating Toggle Button - Fixed to bottom (Mobile only) */}
-
       {!isPanelOpen && (
         <button
           onClick={() => setIsPanelOpen(true)}
@@ -214,172 +352,78 @@ export const GameBoard: React.FC = () => {
         </button>
       )}
 
-      {/* Modern Quick Bet Panel - Collapsible on Mobile */}
+      {/* Modern Quick Bet Panel */}
       <div className="absolute bottom-3 sm:bottom-6 left-3 right-3 sm:left-6 sm:right-auto z-30 pointer-events-none">
+        <div className={`bg-gradient-to-br from-black/95 via-stark-purple/20 to-black/95 backdrop-blur-xl border border-stark-purple/20 rounded-2xl shadow-2xl overflow-hidden w-full sm:w-[300px] transition-all duration-300 ease-out pointer-events-auto ${isPanelOpen ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-full opacity-0 scale-95 !pointer-events-none sm:translate-y-0 sm:opacity-100 sm:scale-100 sm:!pointer-events-auto'}`}>
 
-        {/* Panel - Animated slide up/down on mobile */}
-        <div className={`bg-gradient-to-br from-black/95 via-stark-purple/20 to-black/95 backdrop-blur-xl border border-stark-purple/20 rounded-2xl shadow-2xl overflow-hidden w-full sm:w-[300px] transition-all duration-300 ease-out pointer-events-auto ${isPanelOpen
-          ? 'translate-y-0 opacity-100 scale-100'
-          : 'translate-y-full opacity-0 scale-95 !pointer-events-none sm:translate-y-0 sm:opacity-100 sm:scale-100 sm:!pointer-events-auto'
-          }`}>
+          <button onClick={() => setIsPanelOpen(false)} className="sm:hidden absolute top-2 right-2 w-6 h-6 bg-white/10 rounded-full flex items-center justify-center text-gray-400 hover:text-white text-xs z-10">✕</button>
 
-          {/* Close button for mobile */}
-          <button
-            onClick={() => setIsPanelOpen(false)}
-            className="sm:hidden absolute top-2 right-2 w-6 h-6 bg-white/10 rounded-full flex items-center justify-center text-gray-400 hover:text-white text-xs z-10"
-          >
-            ✕
-          </button>
+          {/* Sealed/Tongo Toggle */}
+          <div className="flex items-center justify-between px-4 py-2 bg-stark-purple/10 border-b border-white/5">
+            <div className="flex items-center gap-2">
+              <Shield className={`w-3 h-3 ${isSealed ? 'text-stark-purple animate-pulse' : 'text-gray-500'}`} />
+              <span className="text-[9px] font-black uppercase tracking-widest text-white/70">Sealed Mode (Tongo)</span>
+            </div>
+            <button
+              onClick={() => setIsSealed(!isSealed)}
+              className={`w-8 h-4 rounded-full p-0.5 transition-colors duration-200 ${isSealed ? 'bg-stark-purple' : 'bg-gray-700'}`}
+            >
+              <div className={`w-3 h-3 bg-white rounded-full transition-transform duration-200 transform ${isSealed ? 'translate-x-4' : 'translate-x-0'}`} />
+            </button>
+          </div>
 
-          {/* Game Mode Selector */}
           <div className="flex gap-1 p-1 bg-black/60 border-b border-white/5">
-            <button
-              onClick={() => setGameMode('binomo')}
-              data-tour="classic-mode"
-              className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all duration-200 ${gameMode === 'binomo'
-                ? 'bg-stark-orange/20 text-stark-orange border border-stark-orange/40'
-                : 'text-gray-500 hover:text-gray-300'
-                }`}
-            >
-              Classic
-            </button>
-            <button
-              onClick={() => setGameMode('box')}
-              data-tour="box-mode"
-              className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all duration-200 ${gameMode === 'box'
-                ? 'bg-stark-orange/20 text-stark-orange border border-stark-orange/40'
-                : 'text-gray-500 hover:text-gray-300'
-                }`}
-            >
-              Box Mode
-            </button>
+            <button onClick={() => setGameMode('binomo')} className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all duration-200 ${gameMode === 'binomo' ? 'bg-stark-orange/20 text-stark-orange border border-stark-orange/40' : 'text-gray-500 hover:text-gray-300'}`}>Classic</button>
+            <button onClick={() => setGameMode('box')} className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all duration-200 ${gameMode === 'box' ? 'bg-stark-orange/20 text-stark-orange border border-stark-orange/40' : 'text-gray-500 hover:text-gray-300'}`}>Box Mode</button>
           </div>
 
-          {/* Tab Navigation - Pill Style */}
           <div className="flex gap-1 p-2 bg-black/40">
-            <button
-              onClick={() => setActiveTab('bet')}
-              className={`flex-1 flex items-center justify-center px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 ${activeTab === 'bet'
-                ? 'bg-gradient-to-r from-stark-orange to-red-600 text-white shadow-lg shadow-stark-orange/30'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-                }`}
-            >
-              Bet
-            </button>
-            <button
-              onClick={() => setActiveTab('wallet')}
-              data-tour="wallet-tab"
-              className={`flex-1 flex items-center justify-center px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 ${activeTab === 'wallet'
-                ? 'bg-gradient-to-r from-stark-orange to-red-600 text-white shadow-lg shadow-stark-orange/30'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-                }`}
-            >
-              Wallet
-            </button>
-            <button
-              onClick={() => setActiveTab('blitz')}
-              className={`flex-1 flex items-center justify-center px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 ${activeTab === 'blitz'
-                ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg shadow-orange-500/30'
-                : 'text-orange-400/70 hover:text-orange-400 hover:bg-orange-400/5'
-                }`}
-            >
-              Blitz
-            </button>
+            <button onClick={() => setActiveTab('bet')} className={`flex-1 flex items-center justify-center px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 ${activeTab === 'bet' ? 'bg-gradient-to-r from-stark-orange to-red-600 text-white shadow-lg shadow-stark-orange/30' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>Bet</button>
+            <button onClick={() => setActiveTab('wallet')} className={`flex-1 flex items-center justify-center px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 ${activeTab === 'wallet' ? 'bg-gradient-to-r from-stark-orange to-red-600 text-white shadow-lg shadow-stark-orange/30' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>Wallet</button>
+            <button onClick={() => setActiveTab('blitz')} className={`flex-1 flex items-center justify-center px-4 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 ${activeTab === 'blitz' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg shadow-orange-500/30' : 'text-orange-400/70 hover:text-orange-400 hover:bg-orange-400/5'}`}>Blitz</button>
           </div>
 
-          {/* Content Area - Fixed Height */}
           <div className="p-4 min-h-[180px]">
             {activeTab === 'bet' ? (
               <div className="space-y-4">
-                {/* Amount Presets */}
                 <div>
-                  <label className="text-gray-500 text-[10px] font-medium uppercase tracking-widest mb-2 block">
-                    Quick Amount
-                  </label>
+                  <label className="text-gray-500 text-[10px] font-medium uppercase tracking-widest mb-2 block">Quick Amount</label>
                   <div className="grid grid-cols-5 gap-1.5">
                     {[100, 500, 1000, 5000, 10000].map(amt => (
-                      <button
-                        key={amt}
-                        onClick={() => setBetAmount(amt.toString())}
-                        className={`
-                          py-2.5 rounded-lg font-bold text-[10px] transition-all duration-200
-                          ${betAmount === amt.toString()
-                            ? 'bg-gradient-to-b from-stark-orange to-red-700 text-white shadow-lg shadow-stark-orange/30 scale-105'
-                            : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:scale-102'
-                          }
-                        `}
-                      >
-                        {amt >= 1000 ? `${amt / 1000}k` : amt}
-                      </button>
+                      <button key={amt} onClick={() => setBetAmount(amt.toString())} className={`py-2.5 rounded-lg font-bold text-[10px] transition-all duration-200 ${betAmount === amt.toString() ? 'bg-gradient-to-b from-stark-orange to-red-700 text-white shadow-lg shadow-stark-orange/30 scale-105' : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:scale-102'}`}>{amt >= 1000 ? `${amt / 1000}k` : amt}</button>
                     ))}
                   </div>
                 </div>
 
-                {/* Duration Selector */}
                 <div>
-                  <label className="text-gray-500 text-[10px] font-medium uppercase tracking-widest mb-2 block">
-                    Expiration Time
-                  </label>
+                  <label className="text-gray-500 text-[10px] font-medium uppercase tracking-widest mb-2 block">Expiration Time</label>
                   <div className="grid grid-cols-5 gap-1.5">
                     {[5, 10, 15, 30, 60].map(duration => (
-                      <button
-                        key={duration}
-                        onClick={() => setSelectedDuration(duration)}
-                        className={`
-                          py-2 rounded-lg font-bold text-xs transition-all duration-200 border
-                          ${selectedDuration === duration
-                            ? 'bg-stark-orange/20 border-stark-orange text-stark-orange shadow-[0_0_10px_rgba(228,65,52,0.2)]'
-                            : 'bg-black/40 border-white/5 text-gray-500 hover:text-gray-300 hover:border-white/10'
-                          }
-                        `}
-                      >
+                      <button key={duration} onClick={() => setSelectedDuration(duration)} className={`py-2 rounded-lg font-bold text-xs transition-all duration-200 border ${selectedDuration === duration ? 'bg-stark-orange/20 border-stark-orange text-stark-orange' : 'bg-black/40 border-white/5 text-gray-500 hover:text-gray-300'}`}>
                         <div className="flex flex-col items-center">
                           <span>{duration < 60 ? `${duration}s` : '1m'}</span>
-                          {gameMode === 'binomo' && (
-                            <span className="text-[8px] opacity-70">x{getMultiplier(duration)}</span>
-                          )}
+                          {gameMode === 'binomo' && <span className="text-[8px] opacity-70">x{getMultiplier(duration)}</span>}
                         </div>
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {/* Custom Input */}
                 <div>
-                  <label className="text-gray-500 text-[10px] font-medium uppercase tracking-widest mb-2 block">
-                    Investment Amount
-                  </label>
+                  <label className="text-gray-500 text-[10px] font-medium uppercase tracking-widest mb-2 block">Investment Amount</label>
                   <div className="flex items-center bg-black/40 rounded-xl p-1 border border-white/5">
-                    <input
-                      type="number"
-                      value={betAmount}
-                      onChange={(e) => setBetAmount(e.target.value)}
-                      className="flex-1 bg-transparent px-2 py-2 text-white font-mono text-base focus:outline-none min-w-0"
-                      placeholder="0.00"
-                    />
-                    <span className="px-2 py-1.5 bg-stark-orange/20 rounded-lg text-stark-orange text-[10px] font-bold shrink-0">
-                      {currencySymbol}
-                    </span>
+                    <input type="number" value={betAmount} onChange={(e) => setBetAmount(e.target.value)} className="flex-1 bg-transparent px-2 py-2 text-white font-mono text-base focus:outline-none min-w-0" placeholder="0.00" />
+                    <span className="px-2 py-1.5 bg-stark-orange/20 rounded-lg text-stark-orange text-[10px] font-bold shrink-0">{currencySymbol}</span>
                   </div>
                 </div>
 
-                {/* Action Buttons / Instructions */}
                 {gameMode === 'binomo' ? (
                   <div className="grid grid-cols-2 gap-3 pt-2">
-                    <button
-                      onClick={() => handleObolusBet('UP')}
-                      disabled={!isConnected || isPlacingBet}
-                      className="group relative flex flex-col items-center justify-center gap-1 py-4 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-2xl transition-all duration-200 active:scale-95 disabled:opacity-50"
-                    >
+                    <button onClick={() => handleObolusBet('UP')} disabled={!isConnected || isPlacing} className="group relative flex flex-col items-center justify-center gap-1 py-4 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-2xl transition-all duration-200 active:scale-95 disabled:opacity-50">
                       <div className="text-emerald-500 text-2xl font-bold group-hover:scale-110 transition-transform">▲</div>
                       <span className="text-emerald-400 text-xs font-black tracking-tighter uppercase">Higher</span>
                     </button>
-
-                    <button
-                      onClick={() => handleObolusBet('DOWN')}
-                      disabled={!isConnected || isPlacingBet}
-                      className="group relative flex flex-col items-center justify-center gap-1 py-4 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded-2xl transition-all duration-200 active:scale-95 disabled:opacity-50"
-                    >
+                    <button onClick={() => handleObolusBet('DOWN')} disabled={!isConnected || isPlacing} className="group relative flex flex-col items-center justify-center gap-1 py-4 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded-2xl transition-all duration-200 active:scale-95 disabled:opacity-50">
                       <div className="text-rose-500 text-2xl font-bold group-hover:scale-110 transition-transform">▼</div>
                       <span className="text-rose-400 text-xs font-black tracking-tighter uppercase">Lower</span>
                     </button>
@@ -388,170 +432,38 @@ export const GameBoard: React.FC = () => {
                   <div className="pt-2">
                     <div className="bg-purple-500/10 border border-purple-500/30 rounded-2xl p-4 text-center">
                       <p className="text-purple-300 text-xs font-bold uppercase tracking-widest mb-1">Box Mode Active</p>
-                      <p className="text-gray-400 text-[10px] leading-relaxed">
-                        Click any cell on the grid chart to place your bet. Each cell has a different multiplier based on its distance from the current price.
-                      </p>
+                      <p className="text-gray-400 text-[10px] leading-relaxed">Click any cell on the grid chart to place your bet.</p>
                     </div>
                   </div>
                 )}
-
-                {/* ERROR MESSAGE DISPLAY */}
-                {error && (
-                  <div className="mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-xl relative group">
-                    <button
-                      onClick={clearError}
-                      className="absolute top-2 right-2 text-red-500/50 hover:text-red-500 p-1"
-                    >
-                      ✕
-                    </button>
-                    <div className="flex items-start gap-2">
-                      <span className="text-lg">⚠️</span>
-                      <div className="flex-1">
-                        <p className="text-red-400 text-[10px] font-bold uppercase tracking-wider">Error</p>
-                        <p className="text-red-300 text-[11px] leading-tight mt-0.5">
-                          {error.includes('User not found') || error.includes('balance')
-                            ? `Account not found or no balance. Please deposit ${currencySymbol} to your house balance to start trading.`
-                            : error}
-                        </p>
-                        {(error.includes('User not found') || error.includes('balance')) && (
-                          <button
-                            onClick={() => {
-                              setActiveTab('wallet');
-                              clearError();
-                            }}
-                            className="mt-2 px-3 py-1 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-lg text-red-400 text-[10px] font-bold transition-all"
-                          >
-                            Go to Deposit
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {!isConnected && (
-                  <p className="text-gray-500 text-[10px] text-center font-mono">
-                    Connect Starknet wallet to start
-                  </p>
-                )}
+                {error && <div className="mt-2 text-red-400 text-[10px] font-bold uppercase">{error}</div>}
               </div>
-
             ) : activeTab === 'wallet' ? (
-              <div className="space-y-4" data-tour="deposit-section">
-                {isConnected && address ? (
-                  <>
-                    {/* House Balance Display */}
-                    <BalanceDisplay />
-
-                    {/* Address Card */}
-                    <div className="bg-black/30 rounded-xl p-3 border border-white/5">
-                      <p className="text-gray-500 text-[10px] uppercase tracking-widest mb-1">Wallet Address</p>
-                      <p className="text-white font-mono text-xs break-all">{address}</p>
-                    </div>
-
-                    {/* Wallet Balance Display */}
-                    <div className="bg-gradient-to-br from-purple-500/10 to-transparent rounded-xl p-4 border border-purple-500/20">
-                      <p className="text-gray-400 text-[10px] uppercase tracking-widest mb-1">Wallet Balance</p>
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-2xl font-bold text-white">
-                          {isLoadingBalance ? 'Loading...' : formatBalance(activeWalletBalance)}
-                        </span>
-                        <span className="text-purple-400 text-sm font-medium">{currencySymbol}</span>
-                      </div>
-                    </div>
-
-                    {/* Disconnect Button */}
-                    <button
-                      onClick={() => disconnect()}
-                      className="w-full py-2.5 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl text-xs font-semibold hover:bg-red-500/20 transition-all duration-200"
-                    >
-                      Disconnect Wallet
-                    </button>
-                  </>
-                ) : (
-                  <div className="text-center py-4">
-                    <p className="text-gray-500 text-sm">No wallet connected</p>
-                  </div>
-                )}
+              <div className="space-y-4">
+                <BalanceDisplay />
+                <button onClick={() => disconnect()} className="w-full py-2.5 bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl text-xs font-semibold hover:bg-red-500/20 transition-all">Disconnect Wallet</button>
               </div>
             ) : (
               <div className="space-y-4">
-                {/* Blitz Round Section */}
-                <div className={`rounded-xl p-4 relative overflow-hidden border-2 transition-all duration-500 ${isBlitzActive ? 'bg-gradient-to-br from-orange-500/20 via-red-500/10 to-yellow-500/10 border-orange-500/40 shadow-[0_0_20px_rgba(249,115,22,0.1)]' : 'bg-black/40 border-gray-800/50'}`}>
-                  <div className="absolute top-0 right-0 px-3 py-1 bg-orange-500/20 border-b border-l border-orange-500/30 text-orange-400 text-[9px] font-black uppercase tracking-widest rounded-bl-xl">
-                    Live System
-                  </div>
-
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl border shadow-inner transition-transform duration-500 ${isBlitzActive ? 'bg-orange-500/20 border-orange-500/50 animate-pulse scale-110' : 'bg-gray-900 border-gray-800'}`}>
-                      {isBlitzActive ? '🔥' : '⏰'}
-                    </div>
-                    <div>
-                      <p className={`text-[10px] uppercase font-black tracking-[0.2em] mb-1 ${isBlitzActive ? 'text-orange-400' : 'text-gray-500'}`}>
-                        {isBlitzActive ? 'Blitz Round Active' : 'Next Blitz Sequence'}
-                      </p>
-                      <p className={`text-2xl font-black font-mono tracking-tighter ${isBlitzActive ? 'text-white' : 'text-gray-400'}`}>
-                        {isBlitzActive ? blitzTimeRemaining : blitzCountdown}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="p-3 bg-white/5 rounded-xl border border-white/5">
-                      <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">
-                        <span>Current Multiplier Boost</span>
-                        <span className={isBlitzActive ? 'text-orange-400' : 'text-gray-400'}>{isBlitzActive ? '2.0x' : '1.0x'}</span>
-                      </div>
-                      <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full transition-all duration-1000 ${isBlitzActive ? 'bg-gradient-to-r from-orange-500 to-red-500 w-full' : 'bg-gray-700 w-0'}`}
-                        />
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={handleEnterBlitz}
-                      disabled={!isConnected || hasBlitzAccess || isActivatingBlitz}
-                      className={`w-full py-3.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 transform active:scale-95 ${hasBlitzAccess
-                        ? 'bg-emerald-500/20 border-2 border-emerald-500/40 text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.1)] cursor-default'
-                        : !isConnected
-                          ? 'bg-gray-800 text-gray-500 border border-gray-700'
-                          : 'bg-gradient-to-r from-orange-500 via-red-500 to-orange-500 bg-[length:200%_auto] hover:bg-right text-white shadow-lg shadow-orange-500/20 hover:shadow-orange-500/40 border-t border-white/20'
-                        }`}
-                    >
-                      {isActivatingBlitz ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                          </svg>
-                          Processing...
-                        </span>
-                      ) : hasBlitzAccess ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <span className="text-base">✓</span> System Enabled
-                        </span>
-                      ) : !isConnected ? (
-                        'Connect Wallet'
-                      ) : (
-                        `Enter Blitz Round (${blitzEntryFee} ${currencySymbol})`
-                      )}
-                    </button>
-
-
-                    <p className={`text-[9px] text-center font-medium leading-relaxed ${isBlitzActive ? 'text-orange-500/60' : 'text-gray-600'}`}>
-                      {isBlitzActive
-                        ? 'Activate now to receive 2x multipliers on all boosted grid cells.'
-                        : 'Blitz rounds occur every 3 minutes. Prepare your balance.'}
-                    </p>
-                  </div>
+                <div className={`rounded-xl p-4 border-2 transition-all duration-500 ${isBlitzActive ? 'bg-orange-500/20 border-orange-500/40' : 'bg-black/40 border-gray-800/50'}`}>
+                  <p className="text-[10px] font-black tracking-widest text-orange-400 mb-1">Blitz Round</p>
+                  <p className="text-2xl font-black font-mono text-white">{isBlitzActive ? blitzTimeRemaining : blitzCountdown}</p>
                 </div>
               </div>
             )}
-
           </div>
         </div>
       </div>
+
+      <EncryptionModal
+        isOpen={isEncryptionModalOpen}
+        onComplete={encryptionCompleteCallback || (() => { })}
+        title={encryptionModalTitle}
+        ctSizeL={ctPayload.sizeL}
+        ctSizeR={ctPayload.sizeR}
+        ctPriceL={ctPayload.priceL}
+        ctPriceR={ctPayload.priceR}
+      />
     </div>
   );
 };

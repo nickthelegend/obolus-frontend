@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CallData, uint256 } from 'starknet';
 import { EncryptionModal } from './EncryptionModal';
 import { encryptOrderData } from '@/lib/tongo';
-import { generateTradeProof } from '@/lib/zk';
+import { generateTradeProof, generateMockProof } from '@/lib/zk';
 import PERP_ABI from '@/lib/perp_abi_clean.json';
 
 export function PerpTerminal() {
@@ -132,7 +132,8 @@ export function PerpTerminal() {
             setIsEncryptionModalOpen(true);
         } else {
             // Mocks as fallback for unsealed/plaintext
-            await executeTrade(side, collateralAmount, collateralBaseUnits, "0x123", "0x456", "0x789", "0xabc", [], "0", "0");
+            const mockProof = generateMockProof(collateralBaseUnits, address);
+            await executeTrade(side, collateralAmount, collateralBaseUnits, "0x123", "0x456", "0x789", "0xabc", mockProof, "0", "0");
         }
     };
 
