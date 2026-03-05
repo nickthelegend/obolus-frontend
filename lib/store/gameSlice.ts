@@ -643,7 +643,7 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
 
     activeBets.forEach((bet: ActiveBet) => {
       // Resolve bet if: mode is binomo, asset matches, status is active, and time has passed
-      const betAsset = bet.asset || 'KAS'; // Fallback
+      const betAsset = bet.asset || 'STRK'; // Fallback
 
       if (
         bet.mode === 'binomo' &&
@@ -806,7 +806,7 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
           body: JSON.stringify({
             id: resolvedBet.id,
             walletAddress: address,
-            asset: resolvedBet.asset || 'KAS',
+            asset: resolvedBet.asset || 'STRK',
             direction: resolvedBet.direction,
             amount: resolvedBet.amount,
             multiplier: resolvedBet.multiplier,
@@ -815,7 +815,7 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
             payout: payout,
             won: won,
             mode: resolvedBet.mode,
-            network: network || 'KASPA_TESTNET',
+            network: network || 'STARKNET',
           })
         }).catch(err => console.error('Failed to save bet to Supabase:', err));
       }

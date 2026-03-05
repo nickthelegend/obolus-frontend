@@ -2,8 +2,8 @@
  * Main Zustand store for Binomo dApp
  * Combines wallet, game, and history slices
  * 
- * Note: After BNB migration, blockchain events are handled
- * by the BNB backend client for deposit/withdrawal confirmation.
+ * Note: After Starknet migration, blockchain events are handled
+ * by the Starknet backend client for deposit/withdrawal confirmation.
  * Game logic remains off-chain.
  */
 

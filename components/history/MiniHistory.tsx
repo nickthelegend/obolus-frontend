@@ -57,7 +57,7 @@ export const MiniHistory: React.FC = () => {
                                                         : `-${parseFloat(bet.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                                                 </span>
                                                 <span className="text-[8px] text-gray-600 uppercase font-black">
-                                                    KAS
+                                                    STRK
                                                 </span>
                                             </div>
                                         </div>

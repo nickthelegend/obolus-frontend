@@ -13,6 +13,7 @@ export interface WalletState {
   isConnecting: boolean;
   error: string | null;
   isConnectModalOpen: boolean;
+  network: string;
 
   // Actions
   connect: () => Promise<void>;
@@ -37,6 +38,7 @@ export const createWalletSlice: StateCreator<WalletState> = (set, get) => ({
   isConnecting: false,
   error: null,
   isConnectModalOpen: false,
+  network: 'STARKNET',
 
   /**
    * Connect wallet

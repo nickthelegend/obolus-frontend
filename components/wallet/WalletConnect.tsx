@@ -21,21 +21,21 @@ export const WalletConnect: React.FC = () => {
           data-tour="connect-button"
           className="px-4 py-1.5 bg-white/5 hover:bg-white/10 text-white rounded-lg text-[10px] font-bold uppercase tracking-widest border border-white/10 transition-all active:scale-95"
         >
-          Connect KasWare
+          Connect Wallet
         </button>
       ) : (
         <div className="flex items-center gap-1.5 sm:gap-2">
           <div className="bg-white/5 border border-white/10 rounded-xl px-2 sm:px-3 py-1.5 flex items-center gap-2 sm:gap-2.5">
             <div className="w-4 h-4 shrink-0">
               <img
-                src="/logos/kaspa-logo.png"
-                alt="Kaspa"
+                src="https://starknet.io/wp-content/uploads/2022/10/starknet-logo-1.png"
+                alt="Starknet"
                 className="w-full h-full object-contain"
               />
             </div>
             <div className="flex flex-col items-center sm:items-end">
               <span className="text-[8px] text-[#70C7BA] font-bold uppercase tracking-tighter">
-                KASPA
+                STARKNET
               </span>
               <span className="text-white text-[10px] sm:text-[11px] font-mono leading-none">
                 {shortenAddress(address)}

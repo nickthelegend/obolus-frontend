@@ -13,6 +13,16 @@ export function SealedPositionList({ tongoPrivKey, filterMode }: { tongoPrivKey:
     const closePerpPosition = useStore(state => state.closePerpPosition);
     const address = useStore(state => state.address);
 
+    if (!tongoPrivKey && activeBets.length > 0) {
+        return (
+            <div className="flex flex-col items-center justify-center p-8 text-stark-purple bg-stark-purple/5 border border-stark-purple/10 rounded-lg h-full">
+                <Shield className="w-8 h-8 mb-3 opacity-50 animate-pulse" />
+                <p className="text-sm font-black tracking-widest uppercase">Positions Shielded</p>
+                <p className="text-[10px] opacity-70 mt-1 max-w-[200px] text-center uppercase tracking-tight">Unlock your Obolus Vault to view and manage active positions</p>
+            </div>
+        );
+    }
+
     if (!tongoPrivKey) return null;
 
     if (activeBets.length === 0) {

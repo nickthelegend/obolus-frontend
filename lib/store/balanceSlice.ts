@@ -2,7 +2,7 @@
  * Balance state slice for Zustand store
  * Manages house balance state and operations (deposit, withdraw, bet)
  * 
- * Task: 8.2 Update balance slice for BNB migration
+ * Task: 8.2 Update balance slice for Starknet migration
  * Requirements: 3.5
  */
 
@@ -36,7 +36,7 @@ export interface BalanceState {
 export const createBalanceSlice: StateCreator<BalanceState> = (set, get) => ({
   // Initial state
   houseBalance: 0,
-  demoBalance: 10000, // 10,000 demo BNB to start
+  demoBalance: 10000, // 10,000 demo STRK to start
   accountType: 'real', // Default to real mode, demo activated via logo click
   userTier: 'free',
   isLoading: false,
@@ -45,7 +45,7 @@ export const createBalanceSlice: StateCreator<BalanceState> = (set, get) => ({
   /**
    * Fetch house balance for a user address
    * Queries the balance API endpoint
-   * @param address - BNB wallet address
+   * @param address - Starknet wallet address
    */
   fetchBalance: async (address: string) => {
     const { accountType } = get();
@@ -129,7 +129,7 @@ export const createBalanceSlice: StateCreator<BalanceState> = (set, get) => ({
    * Process deposit funds operation
    * Called after deposit transaction completes to update database
    * @param address - User wallet address
-   * @param amount - Deposit amount in USDC
+   * @param amount - Deposit amount in STRK/USDT
    * @param txHash - Transaction hash for audit trail
    */
   depositFunds: async (address: string, amount: number, txHash: string) => {
@@ -181,7 +181,7 @@ export const createBalanceSlice: StateCreator<BalanceState> = (set, get) => ({
    * Process withdraw funds operation
    * Called after withdrawal transaction completes to update database
    * @param address - User wallet address
-   * @param amount - Withdrawal amount in USDC
+   * @param amount - Withdrawal amount in STRK/USDT
    * @param txHash - Transaction hash for audit trail
    */
   withdrawFunds: async (address: string, amount: number) => {
@@ -229,7 +229,7 @@ export const createBalanceSlice: StateCreator<BalanceState> = (set, get) => ({
   },
 
   /**
-   * Request testnet USDT/USDC from faucet
+   * Request testnet STRK/USDT from faucet
    */
   requestFaucet: async (address: string) => {
     if (!address) return;

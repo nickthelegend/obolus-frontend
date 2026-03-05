@@ -20,7 +20,7 @@ const TIER_DATA = [
         payout: '80%',
         withdrawal: 'Instant',
         fee: '2.0%',
-        requirement: '0 KAS',
+        requirement: '0 STRK',
     },
     {
         id: 'standard',
@@ -32,7 +32,7 @@ const TIER_DATA = [
         payout: '85%',
         withdrawal: 'Instant',
         fee: '1.75%',
-        requirement: '10,000 KAS',
+        requirement: '10,000 STRK',
     },
     {
         id: 'vip',
@@ -44,7 +44,7 @@ const TIER_DATA = [
         payout: '90%',
         withdrawal: 'Instant',
         fee: '1.5%',
-        requirement: '50,000 KAS',
+        requirement: '50,000 STRK',
     }
 ];
 

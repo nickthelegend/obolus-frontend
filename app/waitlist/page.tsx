@@ -9,13 +9,13 @@ import './waitlist.css';
 const steps = [
     {
         id: "01",
-        title: "BlockDAG Performance",
-        desc: "Kaspa-speed precision with the security of Proof-of-Work. Kasnomo connects your wallet to a high-frequency house balance for instant execution on the world's fastest DAG."
+        title: "Starknet Performance",
+        desc: "Starknet-speed precision with the security of ZK-Rollups. Obolus connects your wallet to a high-frequency house balance for instant execution on the world's most scalable network."
     },
     {
         id: "02",
         title: "Multi-Asset Feed",
-        desc: "Trade more than just crypto. Predict millisecond movements on Bitcoin, Kaspa, Gold, and Tech giants like NVDA and TSLA via Pyth Fixed Oracles."
+        desc: "Trade more than just crypto. Predict millisecond movements on Bitcoin, Starknet, Gold, and Tech giants like NVDA and TSLA via Pyth Fixed Oracles."
     },
     {
         id: "03",
@@ -33,7 +33,7 @@ const testimonials = [
     {
         name: "Astra Vance",
         role: "Venture Strategist",
-        content: "The Blitz Rounds are a game-changer. The millisecond precision from Kaspa's BlockDAG makes Kasnomo feel like a professional CEX but with decentralized peace of mind.",
+        content: "The Blitz Rounds are a game-changer. The millisecond precision from Starknet's ZK-Rollup makes Obolus feel like a professional CEX but with decentralized peace of mind.",
         avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop"
     },
     {
@@ -45,13 +45,13 @@ const testimonials = [
     {
         name: "Kai Zen",
         role: "Algo Developer",
-        content: "Migrating to the Kasnomo protocol was the best move. Instant house balance settlement solves the on-chain latency issue perfectly for high-frequency binary options on Kaspa.",
+        content: "Migrating to the Obolus protocol was the best move. Instant house balance settlement solves the on-chain latency issue perfectly for high-frequency binary options on Starknet.",
         avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=200&auto=format&fit=crop"
     },
     {
         name: "Julian Vane",
         role: "Quant Trader",
-        content: "Kasnomo's tiered system provides a clear roadmap for traders. The VIP perks and advanced indicators give us a significant edge in these fast-moving rounds.",
+        content: "Obolus's tiered system provides a clear roadmap for traders. The VIP perks and advanced indicators give us a significant edge in these fast-moving rounds.",
         avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=200&auto=format&fit=crop"
     },
     {
@@ -65,11 +65,11 @@ const testimonials = [
 const faqs = [
     {
         question: "How does the House Balance work?",
-        answer: "To ensure millisecond execution, Kasnomo uses a hybrid house balance system. You deposit KAS into a non-custodial treasury, which is then reflected in your game balance for instant off-chain betting."
+        answer: "To ensure millisecond execution, Obolus uses a hybrid house balance system. You deposit STRK into a non-custodial treasury, which is then reflected in your game balance for instant off-chain betting."
     },
     {
         question: "What assets can I trade?",
-        answer: "Kasnomo supports a wide range of assets including major cryptos (BTC, ETH, KAS), precious metals (Gold, Silver), and top-tier stocks (AAPL, NVDA, TSLA) through Pyth price feeds."
+        answer: "Obolus supports a wide range of assets including major cryptos (BTC, ETH, STRK), precious metals (Gold, Silver), and top-tier stocks (AAPL, NVDA, TSLA) through Pyth price feeds."
     },
     {
         question: "What are Blitz Rounds?",
@@ -81,7 +81,7 @@ const faqs = [
     },
     {
         question: "Are my funds safe?",
-        answer: "Yes. All deposits are held in a secure treasury wallet verified on-chain. Withdrawals are processed through the Kasnomo protocol, ensuring you maintain ultimate control over your assets."
+        answer: "Yes. All deposits are held in a secure treasury wallet verified on-chain. Withdrawals are processed through the Obolus protocol, ensuring you maintain ultimate control over your assets."
     }
 ];
 
@@ -150,7 +150,7 @@ export default function WaitlistPage() {
             </div>
 
             <nav className={`sticky-nav ${scrolled ? 'scrolled' : 'at-top'}`}>
-                <div className="text-xl font-black tracking-tighter" style={{ fontFamily: 'var(--font-orbitron)' }}>KASNOMO</div>
+                <div className="text-xl font-black tracking-tighter" style={{ fontFamily: 'var(--font-orbitron)' }}>OBOLUS</div>
                 <div className="flex items-center gap-4">
                     <a href="/" className="px-5 py-2 bg-white/5 border border-white/10 rounded-full text-[10px] font-black uppercase tracking-[0.2em] text-white hover:bg-white hover:text-black transition-all">Launch App</a>
                 </div>
@@ -166,7 +166,7 @@ export default function WaitlistPage() {
                 >
                     <div className="mb-10">
                         <TrueFocus
-                            sentence="Kasnomo | The future is decentralized."
+                            sentence="Obolus | The future is decentralized."
                             separator=" | "
                             manualMode={false}
                             blurAmount={12}
@@ -248,7 +248,7 @@ export default function WaitlistPage() {
                 <div className="section-content">
                     <div className="text-center mb-32">
                         <div className="text-purple-500 font-black uppercase tracking-[0.4em] text-xs mb-6">Execution Protocol</div>
-                        <h2 className="text-6xl font-black tracking-tighter mb-8 bg-gradient-to-b from-white to-white/40 bg-clip-text text-transparent">How Kasnomo Works</h2>
+                        <h2 className="text-6xl font-black tracking-tighter mb-8 bg-gradient-to-b from-white to-white/40 bg-clip-text text-transparent">How Obolus Works</h2>
                         <div className="h-0.5 w-16 bg-purple-500/30 mx-auto rounded-full" />
                     </div>
 
@@ -392,7 +392,7 @@ export default function WaitlistPage() {
 
             {/* FOOTER SECTION */}
             <footer className="py-24 px-10 border-t border-white/5 bg-black relative z-10 w-full overflow-hidden">
-                <div className="huge-footer-logo">KASNOMO</div>
+                <div className="huge-footer-logo">OBOLUS</div>
 
                 <div className="footer-meta">
                     <div className="footer-meta-item">2026 © All rights reserved</div>
