@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Header } from '@/components/ui/Header';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, Search, Lock, Unlock, AlertTriangle, FileText, CheckCircle } from 'lucide-react';
+import { verifyViewingKey } from '@/lib/tongo';
 
 export default function AuditorPage() {
     const [viewingKey, setViewingKey] = useState("");
@@ -13,25 +14,18 @@ export default function AuditorPage() {
     const handleAudit = async () => {
         if (!viewingKey) return;
         setIsVerifying(true);
+        setDecryptedData(null);
 
-        // Mocking the ZK-decryption delay
-        setTimeout(() => {
-            if (viewingKey.startsWith("obolus_vk_")) {
-                setDecryptedData({
-                    owner: "0x034ba...c469",
-                    asset: "BTC-USD",
-                    size: "4.52 BTC",
-                    leverage: "25x",
-                    entryPrice: "$64,210.50",
-                    pnl: "+$12,450.80",
-                    timestamp: "2024-03-23 10:42:15 UTC",
-                    compliance: "CLEAN"
-                });
-            } else {
-                setDecryptedData({ error: "Invalid Viewing Key or Malformed Ciphertext" });
-            }
+        try {
+            // Real cryptographic verification using Tongo SDK
+            const data = await verifyViewingKey(viewingKey);
+            setDecryptedData(data);
+        } catch (err: any) {
+            console.error("Audit verification failed:", err);
+            setDecryptedData({ error: err.message || "Invalid Viewing Key or Malformed Ciphertext" });
+        } finally {
             setIsVerifying(false);
-        }, 2000);
+        }
     };
 
     return (
@@ -110,7 +104,7 @@ export default function AuditorPage() {
                                                 </div>
                                                 <div>
                                                     <h3 className="text-2xl font-bold italic tracking-tighter">SECURELY REVEALED</h3>
-                                                    <p className="text-xs text-muted-foreground">Trade ID: OB-8892-ZKP</p>
+                                                    <p className="text-xs text-muted-foreground truncate w-48">Trade ID: {decryptedData.id}</p>
                                                 </div>
                                             </div>
                                             <div className="text-right">

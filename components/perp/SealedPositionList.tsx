@@ -2,6 +2,8 @@ import React from 'react';
 import { Shield, ArrowUpRight, ArrowDownRight, AlertTriangle, Zap } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { liquidatePosition } from '@/lib/perp';
+import { generateViewingKey } from '@/lib/tongo';
+import { Eye, Key, Copy, Check } from 'lucide-react';
 
 import { useAccount } from '@starknet-react/core';
 
@@ -107,6 +109,28 @@ export function SealedPositionList({ tongoPrivKey, filterMode }: { tongoPrivKey:
                                     Rect
                                 </button>
                             )}
+                            <button
+                                onClick={async () => {
+                                    if (tongoPrivKey) {
+                                        const vk = await generateViewingKey(tongoPrivKey, bet.id, {
+                                            owner: address,
+                                            asset: `${bet.asset}-USDT`,
+                                            size: `${((bet.amount * (bet.leverage || bet.multiplier || 1)) / (entryPrice || 1)).toFixed(4)} ${bet.asset}`,
+                                            leverage: `${bet.multiplier || bet.leverage || 1}x`,
+                                            entryPrice: `$${entryPrice.toFixed(4)}`,
+                                            pnl: pnlString
+                                        });
+                                        if (vk) {
+                                            navigator.clipboard.writeText(vk);
+                                            alert("Viewing Key copied! Share this with an auditor to verify position state.");
+                                        }
+                                    }
+                                }}
+                                className="px-2.5 py-1.5 bg-stark-purple/10 text-stark-purple border border-stark-purple/20 rounded-md hover:bg-stark-purple hover:text-white transition-all flex items-center justify-center"
+                                title="Copy Viewing Key"
+                            >
+                                <Key className="w-3.5 h-3.5" />
+                            </button>
                             <button
                                 onClick={() => {
                                     if (!address || !account) {
