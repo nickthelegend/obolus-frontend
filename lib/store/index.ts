@@ -41,6 +41,7 @@ export const useOverflowStore = create<OverflowStore>()(
         address: state.address,
         isConnected: state.isConnected,
         userTier: state.userTier,
+        activeBets: state.activeBets,
       }),
     }
   )

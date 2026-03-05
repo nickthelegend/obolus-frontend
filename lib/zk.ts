@@ -109,6 +109,12 @@ export async function generateTradeProof(
 
         if (garagaData.error) {
             console.error("Garaga server error:", garagaData.error);
+            throw new Error(`Garaga error: ${garagaData.error}`);
+        }
+
+        if (!garagaData.calldata || !Array.isArray(garagaData.calldata)) {
+            console.error("Invalid calldata from Garaga:", garagaData);
+            throw new Error("Invalid calldata received from Garaga server");
         }
 
         // Format for Garaga / Cairo Verification
@@ -117,16 +123,11 @@ export async function generateTradeProof(
             publicSignals,
             commitment,
             nullifier,
-            calldata: garagaData.calldata || [
-                proof.pi_a[0], proof.pi_a[1],
-                proof.pi_b[0][1], proof.pi_b[0][0],
-                proof.pi_b[1][1], proof.pi_b[1][0],
-                proof.pi_c[0], proof.pi_c[1]
-            ]
+            calldata: garagaData.calldata
         };
 
     } catch (e) {
-        console.error("Failed to generate ZK Proof", e);
+        console.error("Failed to generate ZK Proof:", e);
         throw e;
     }
 }

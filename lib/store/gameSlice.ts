@@ -12,7 +12,7 @@ import { AssetType } from "@/lib/utils/priceFeed";
 import { playWinSound, playLoseSound } from "@/lib/utils/sounds";
 
 // Game Modes
-export type GameMode = 'binomo' | 'box' | 'perp';
+export type GameMode = 'binomo' | 'box' | 'perp' | 'spot';
 
 // Active bet (Supports both modes)
 export interface ActiveBet {
@@ -315,6 +315,20 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
           priceChange: 0,
           direction: direction
         };
+      } else if (gameMode === 'spot' && targetId.includes('-SPOT')) {
+        // Spot mode handling
+        const parts = targetId.split('-');
+        direction = parts[0] === 'BUY' ? 'UP' : 'DOWN';
+        multiplier = 1;
+        durationSeconds = 0;
+
+        target = {
+          id: targetId,
+          label: `Spot ${parts[0]}`,
+          multiplier: 1,
+          priceChange: 0,
+          direction: direction
+        };
       } else {
         // Find predefined target cell
         const foundTarget = targetCells.find((cell: TargetCell) => cell.id === targetId);
@@ -353,9 +367,13 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
           ...(gameMode === 'binomo' ? {
             strikePrice: currentPrice,
             endTime: Date.now() + (durationSeconds * 1000)
+          } : (gameMode === 'perp' || gameMode === 'spot' ? {
+            entryPrice: currentPrice,
+            leverage: multiplier,
+            unrealizedPnL: 0
           } : {
             cellId: cellId || targetId
-          })
+          }))
         };
 
 
@@ -423,7 +441,7 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
         ...(gameMode === 'binomo' ? {
           strikePrice: currentPrice,
           endTime: Date.now() + (durationSeconds * 1000)
-        } : (gameMode === 'perp' ? {
+        } : (gameMode === 'perp' || gameMode === 'spot' ? {
           entryPrice: currentPrice,
           leverage: multiplier,
           unrealizedPnL: 0

@@ -5,9 +5,10 @@ import { liquidatePosition } from '@/lib/perp';
 
 import { useAccount } from '@starknet-react/core';
 
-export function SealedPositionList({ tongoPrivKey }: { tongoPrivKey: string | null }) {
+export function SealedPositionList({ tongoPrivKey, filterMode }: { tongoPrivKey: string | null, filterMode?: string }) {
     const { account } = useAccount();
-    const activeBets = useStore(state => state.activeBets);
+    const allActiveBets = useStore(state => state.activeBets);
+    const activeBets = filterMode ? allActiveBets.filter(b => b.mode === filterMode) : allActiveBets;
     const currentPrice = useStore(state => state.currentPrice);
     const closePerpPosition = useStore(state => state.closePerpPosition);
     const address = useStore(state => state.address);

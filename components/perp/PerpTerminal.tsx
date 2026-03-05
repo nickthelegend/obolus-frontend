@@ -12,10 +12,11 @@ import { CallData, uint256 } from 'starknet';
 import { EncryptionModal } from './EncryptionModal';
 import { encryptOrderData } from '@/lib/tongo';
 import { generateTradeProof } from '@/lib/zk';
+import PERP_ABI from '@/lib/perp_abi_clean.json';
 
 export function PerpTerminal() {
     const { address, status, account } = useAccount();
-    const { tongoPrivKey, currentPrice, selectedAsset, setSelectedAsset, placeBetFromHouseBalance, houseBalance, requestFaucet, isLoading, setGameMode } = useStore();
+    const { tongoPrivKey, currentPrice, selectedAsset, setSelectedAsset, placeBetFromHouseBalance, houseBalance, requestFaucet, isLoading, setGameMode, activeBets } = useStore();
     const [justClaimed, setJustClaimed] = useState(false);
 
     // Real USDT Address from ENV
@@ -60,15 +61,20 @@ export function PerpTerminal() {
 
     // REAL SMART CONTRACT TRADE EXECUTION
     const handleTrade = async (side: 'long' | 'short') => {
-        if (!address || !size || !account) return;
+        if (!address || !size || !account || isPlacing) return;
 
-        const collateralAmount = parseFloat(size) * currentPrice / leverage;
+        const tradePrice = currentPrice; // Capture current price snapshot
+        const collateralAmount = parseFloat(size) * tradePrice / leverage;
         const collateralBaseUnits = BigInt(Math.floor(collateralAmount * 1e6)); // 6 decimals for USDT
+
+        console.log(`[Trade] Initiating ${side} ${size} @ ${leverage}x. Price: ${tradePrice}, Collateral: ${collateralBaseUnits}`);
 
         if (collateralAmount > houseBalance) {
             alert(`Insufficient USDT. Required: ${collateralAmount.toFixed(2)} USDT, Available: ${houseBalance.toFixed(2)} USDT`);
             return;
         }
+
+        setIsPlacing(true);
 
         if (isSealed) {
             let finalSizeL = "0x123", finalSizeR = "0x456", finalPriceL = "0x789", finalPriceR = "0xabc";
@@ -84,7 +90,7 @@ export function PerpTerminal() {
                     finalSizeR = encryptedSize.ct_R;
 
                     // Encrypt Price
-                    const priceTarget = orderType === 'limit' && limitPrice ? parseFloat(limitPrice) : currentPrice;
+                    const priceTarget = orderType === 'limit' && limitPrice ? parseFloat(limitPrice) : tradePrice;
                     const encryptedPrice = await encryptOrderData(tongoPrivKey, BigInt(Math.floor(priceTarget * 1e6)));
                     finalPriceL = encryptedPrice.ct_L;
                     finalPriceR = encryptedPrice.ct_R;
@@ -106,11 +112,15 @@ export function PerpTerminal() {
                         }
                     } catch (zkErr) {
                         console.error("[ZK] Proof generation failed:", zkErr);
+                        setIsPlacing(false);
+                        return;
                     }
 
                     setCtPayload({ sizeL: finalSizeL, sizeR: finalSizeR, priceL: finalPriceL, priceR: finalPriceR });
                 } catch (e) {
                     console.error("Encryption error:", e);
+                    setIsPlacing(false);
+                    return;
                 }
             }
 
@@ -128,33 +138,44 @@ export function PerpTerminal() {
 
     const executeTrade = async (side: 'long' | 'short', collateralAmount: number, collateralBaseUnits: bigint, sizeL: string, sizeR: string, priceL: string, priceR: string, zkCalldata: string[], commitment: string, nullifier: string) => {
         setIsPlacing(true);
+        console.log("Executing trade with:", {
+            perpContract: process.env.NEXT_PUBLIC_PERP_CONTRACT,
+            usdtContract: USDT_ADDRESS,
+            collateralBaseUnits: collateralBaseUnits.toString(),
+            zkCalldataLen: zkCalldata.length
+        });
 
         try {
             if (orderType === 'market') {
+                const perpContractAddress = process.env.NEXT_PUBLIC_PERP_CONTRACT;
+                if (!perpContractAddress) throw new Error("Missing NEXT_PUBLIC_PERP_CONTRACT");
+
                 // MARKET ORDER: Open Position directly on Perp Contract
                 const tx = await account!.execute([
                     {
                         contractAddress: USDT_ADDRESS,
                         entrypoint: "approve",
-                        calldata: CallData.compile([process.env.NEXT_PUBLIC_PERP_CONTRACT!, collateralBaseUnits.toString(), "0"])
+                        calldata: CallData.compile([perpContractAddress, collateralBaseUnits.toString(), "0"])
                     },
                     {
-                        contractAddress: process.env.NEXT_PUBLIC_PERP_CONTRACT!,
+                        contractAddress: perpContractAddress,
                         entrypoint: "deposit_collateral",
                         calldata: CallData.compile([collateralBaseUnits.toString()])
                     },
                     {
-                        contractAddress: process.env.NEXT_PUBLIC_PERP_CONTRACT!,
+                        contractAddress: perpContractAddress,
                         entrypoint: "open_position_sealed",
-                        calldata: CallData.compile([
-                            sizeL, sizeR, priceL, priceR,
-                            collateralBaseUnits.toString(),
-                            zkCalldata,
-                            uint256.bnToUint256(commitment),
-                            uint256.bnToUint256(nullifier)
-                        ])
+                        calldata: new CallData(PERP_ABI).compile("open_position_sealed", {
+                            ct_size_L: sizeL,
+                            ct_size_R: sizeR,
+                            ct_price_L: priceL,
+                            ct_price_R: priceR,
+                            collateral: collateralBaseUnits.toString(),
+                            zk_proof: zkCalldata,
+                            commitment: uint256.bnToUint256(commitment),
+                            nullifier: uint256.bnToUint256(nullifier)
+                        })
                     }
-
                 ]);
                 console.log("Market Trade Tx:", tx.transaction_hash);
             } else {
@@ -339,7 +360,7 @@ export function PerpTerminal() {
                             onClick={() => setActiveTab('positions')}
                             className={`px-6 py-2 rounded-lg text-xs font-bold uppercase tracking-widest flex items-center gap-2 transition-all ${activeTab === 'positions' ? 'bg-white/10 text-white' : 'text-muted-foreground hover:bg-white/5'}`}
                         >
-                            Positions <span className="bg-stark-purple px-1.5 py-0.5 rounded text-[10px]">1</span>
+                            Positions <span className="bg-stark-purple px-1.5 py-0.5 rounded text-[10px]">{activeBets.filter(b => b.mode === 'perp').length}</span>
                         </button>
                         <button
                             onClick={() => setActiveTab('orders')}
@@ -356,7 +377,7 @@ export function PerpTerminal() {
                     </div>
                     <div className="flex-1 overflow-auto p-4 custom-scrollbar">
                         {activeTab === 'positions' ? (
-                            <SealedPositionList tongoPrivKey={tongoPrivKey} />
+                            <SealedPositionList tongoPrivKey={tongoPrivKey} filterMode="perp" />
                         ) : activeTab === 'orders' ? (
                             <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
                                 <div className="p-4 bg-stark-purple/10 border border-stark-purple/20 rounded-xl max-w-sm">

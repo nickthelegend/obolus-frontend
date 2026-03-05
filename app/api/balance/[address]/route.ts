@@ -9,6 +9,7 @@ export async function GET(
   try {
     const { address: rawAddress } = await params;
     const address = normalizeAddress(rawAddress);
+    console.log(`[API] GET Balance for: ${address}`);
 
     if (!address) {
       return NextResponse.json({ error: 'Address required' }, { status: 400 });
