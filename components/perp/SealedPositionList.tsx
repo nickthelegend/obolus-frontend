@@ -9,7 +9,7 @@ export function SealedPositionList({ tongoPrivKey, filterMode }: { tongoPrivKey:
     const { account } = useAccount();
     const allActiveBets = useStore(state => state.activeBets);
     const activeBets = filterMode ? allActiveBets.filter(b => b.mode === filterMode) : allActiveBets;
-    const currentPrice = useStore(state => state.currentPrice);
+    const assetPrices = useStore(state => state.assetPrices);
     const closePerpPosition = useStore(state => state.closePerpPosition);
     const address = useStore(state => state.address);
 
@@ -42,16 +42,20 @@ export function SealedPositionList({ tongoPrivKey, filterMode }: { tongoPrivKey:
                 const entryPrice = bet.entryPrice || bet.strikePrice || 0;
 
                 // Use store-calculated PnL or fall back to local calculation
-                const rawPnl = bet.unrealizedPnL !== undefined ? bet.unrealizedPnL : (() => {
-                    const priceDiff = currentPrice - entryPrice;
-                    const pnlPercentage = entryPrice ? (priceDiff / entryPrice) * bet.multiplier : 0;
-                    let localPnl = bet.amount * pnlPercentage;
+                const assetPrice = assetPrices[bet.asset] || (bet.asset === useStore.getState().selectedAsset ? useStore.getState().currentPrice : 0);
+
+                const rawPnl = (() => {
+                    if (!assetPrice || !entryPrice) return 0;
+                    const priceDiff = assetPrice - entryPrice;
+                    const lev = bet.leverage || bet.multiplier || 1;
+                    const pnlPercentage = (priceDiff / entryPrice) * lev;
+                    const localPnl = bet.amount * pnlPercentage;
                     return isLong ? localPnl : -localPnl;
                 })();
 
                 const isLiquidatable = rawPnl <= -bet.amount * 0.9; // 90% loss
                 const isProfit = rawPnl >= 0;
-                const pnlString = `${isProfit ? '+' : '-'}$${Math.abs(rawPnl).toFixed(2)}`;
+                const pnlString = `${isProfit ? '+' : '-'}$${Math.abs(rawPnl).toFixed(Math.abs(rawPnl) < 1 ? 4 : 2)}`;
 
                 return (
                     <div key={bet.id || i} className={`flex items-center justify-between p-3 bg-white/5 hover:bg-white/10 border rounded-lg transition-colors group ${isLiquidatable ? 'border-red-500/50 bg-red-500/5' : 'border-white/5'}`}>
@@ -62,6 +66,9 @@ export function SealedPositionList({ tongoPrivKey, filterMode }: { tongoPrivKey:
                             <div>
                                 <div className="flex items-center gap-2">
                                     <span className="font-bold text-sm tracking-tight">{bet.asset}-USDT</span>
+                                    <span className="text-[10px] text-white/50 font-mono ml-1">
+                                        {((bet.amount * (bet.leverage || bet.multiplier || 1)) / (entryPrice || 1)).toFixed(4)} {bet.asset}
+                                    </span>
                                     <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-stark-purple/20 text-stark-purple flex items-center gap-1">
                                         <Shield className="w-2 h-2" /> SEALED
                                     </span>

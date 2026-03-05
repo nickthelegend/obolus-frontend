@@ -78,7 +78,7 @@ export interface GameState {
   setSelectedAsset: (asset: AssetType) => void;
   setTimeframeSeconds: (seconds: number) => void;
   placeBet: (amount: string, targetId: string) => Promise<void>;
-  placeBetFromHouseBalance: (amount: string, targetId: string, userAddress: string, cellId?: string, positionId?: number) => Promise<{ betId: string; remainingBalance: number; bet: ActiveBet } | void>;
+  placeBetFromHouseBalance: (amount: string, targetId: string, userAddress: string, cellId?: string, positionId?: number, overridePrice?: number) => Promise<{ betId: string; remainingBalance: number; bet: ActiveBet } | void>;
   closePerpPosition: (betId: string, userAddress: string, account?: any) => Promise<void>;
   updatePrice: (price: number, asset?: AssetType) => void;
   updateAllPrices: (prices: Record<string, number>) => void;
@@ -269,7 +269,7 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
    * @param userAddress - User's Kaspa wallet address
    * @param cellId - Optional: The specific cell ID this bet is placed on
    */
-  placeBetFromHouseBalance: async (amount: string, targetId: string, userAddress: string, cellId?: string) => {
+  placeBetFromHouseBalance: async (amount: string, targetId: string, userAddress: string, cellId?: string, positionId?: number, overridePrice?: number) => {
     const { targetCells, currentPrice, addActiveBet, gameMode, timeframeSeconds, selectedAsset } = get();
 
     try {
@@ -405,7 +405,7 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
           userAddress: formattedAddress,
           betAmount,
           roundId: Date.now(),
-          targetPrice: currentPrice,
+          targetPrice: overridePrice || currentPrice,
           isOver: direction === 'UP',
           multiplier: multiplier,
           targetCell: {
@@ -440,10 +440,10 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
         timestamp: Date.now(),
         status: 'active',
         ...(gameMode === 'binomo' ? {
-          strikePrice: currentPrice,
+          strikePrice: overridePrice || currentPrice,
           endTime: Date.now() + (durationSeconds * 1000)
         } : (gameMode === 'perp' || gameMode === 'spot' ? {
-          entryPrice: currentPrice,
+          entryPrice: overridePrice || currentPrice,
           leverage: multiplier,
           unrealizedPnL: 0
         } : {
@@ -602,13 +602,14 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
       priceHistory, selectedAsset, assetPrices, rawAssetPrices,
       activeBets, resolveBet, updateBalance, address, accountType, fetchBalance
     } = get();
+    // COLLECT UPDATES TO AVOID MULTIPLE SET CALLS
+    let nextStateUpdates: Partial<GameState> & { activeBets?: ActiveBet[] } = {};
+
     const currentSelectedAsset = (asset || selectedAsset) as AssetType;
     const now = Date.now();
-
-    // Use RAW real-world prices (No amplification for hackathon)
     const finalPrice = price;
 
-    // Update global asset prices
+    // 1. Update global asset tracking
     const updatedAssetPrices = { ...assetPrices, [currentSelectedAsset]: finalPrice };
     const updatedRawPrices = { ...rawAssetPrices, [currentSelectedAsset]: price };
 
@@ -623,109 +624,81 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
     };
 
     if (currentSelectedAsset === selectedAsset) {
-      set({
+      nextStateUpdates = {
+        ...nextStateUpdates,
         currentPrice: finalPrice,
         priceHistory: updatedHistory,
-        assetPrices: updatedAssetPrices,
-        assetHistories: updatedAssetHistories,
-        rawAssetPrices: updatedRawPrices
-      });
-    } else {
-      set({
-        assetPrices: updatedAssetPrices,
-        assetHistories: updatedAssetHistories,
-        rawAssetPrices: updatedRawPrices
-      });
+      };
     }
 
-    // RESOLUTION LOGIC: Check for expired bets for THIS specific asset
-    if (!activeBets) return;
+    nextStateUpdates = {
+      ...nextStateUpdates,
+      assetPrices: updatedAssetPrices,
+      assetHistories: updatedAssetHistories,
+      rawAssetPrices: updatedRawPrices
+    };
 
-    activeBets.forEach((bet: ActiveBet) => {
-      // Resolve bet if: mode is binomo, asset matches, status is active, and time has passed
-      const betAsset = bet.asset || 'STRK'; // Fallback
+    // 2. PROCESS ACTIVE BETS (Resolutions & PnL)
+    if (activeBets && activeBets.length > 0) {
+      let betsModified = false;
+      const updatedBets = activeBets.map((bet: ActiveBet) => {
+        const betAsset = bet.asset || 'STRK';
 
-      if (
-        bet.mode === 'binomo' &&
-        betAsset === currentSelectedAsset &&
-        bet.endTime &&
-        bet.strikePrice !== undefined &&
-        now >= bet.endTime &&
-        bet.status === 'active'
-      ) {
-        let won = false;
-        if (bet.direction === 'UP') {
-          won = finalPrice > bet.strikePrice;
-        } else {
-          won = finalPrice < bet.strikePrice;
+        // Skip resolution if it's not the asset we're currently updating
+        if (betAsset !== currentSelectedAsset) return bet;
+
+        // BINOMO SETTLEMENT
+        if (
+          bet.mode === 'binomo' &&
+          bet.endTime &&
+          bet.strikePrice !== undefined &&
+          now >= bet.endTime &&
+          bet.status === 'active'
+        ) {
+          betsModified = true;
+          const won = bet.direction === 'UP' ? finalPrice > bet.strikePrice : finalPrice < bet.strikePrice;
+          const payout = won ? bet.amount * bet.multiplier : 0;
+
+          if (won) playWinSound(); else playLoseSound();
+
+          // Mark as settled (will be moved to settledBets by resolveBet logic)
+          // Actually we call resolveBet which handles historical moves
+          setTimeout(() => resolveBet(bet.id, won, payout), 0);
+
+          return { ...bet, status: 'settled' };
         }
 
-        const payout = won ? bet.amount * bet.multiplier : 0;
+        // PERP PNL AND LIQUIDATION
+        if (bet.mode === 'perp' && bet.entryPrice && bet.status === 'active') {
+          const priceDiff = finalPrice - bet.entryPrice;
+          const priceChangePercent = priceDiff / bet.entryPrice;
+          const pnl = bet.amount * priceChangePercent * (bet.leverage || bet.multiplier || 1) * (bet.direction === 'UP' ? 1 : -1);
 
-        // Play sound effects
-        if (won) playWinSound();
-        else playLoseSound();
-
-        // Mark as settled and show result with asset info
-        set({
-          lastResult: {
-            won,
-            amount: bet.amount,
-            payout,
-            timestamp: now,
-            asset: betAsset
+          // Liquidation Check
+          if (pnl <= -bet.amount * 0.95) {
+            betsModified = true;
+            playLoseSound();
+            setTimeout(() => resolveBet(bet.id, false, 0), 0);
+            return { ...bet, status: 'settled', unrealizedPnL: pnl, liquidated: true };
           }
-        });
 
-        resolveBet(bet.id, won, payout);
-
-        // Update real balance if necessary
-        const isDemoMode = accountType === 'demo' || address?.startsWith('0xDEMO');
-
-        if (!isDemoMode && address && won) {
-          // Real mode - credit winnings via API
-          fetch('/api/balance/win', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userAddress: address,
-              winAmount: payout,
-              betId: bet.id
-            })
-          }).then(async (response) => {
-            if (response.ok) {
-              const data = await response.json();
-              if (data.success && data.newBalance !== undefined) {
-                set({ houseBalance: data.newBalance } as any);
-              }
-            } else {
-              console.error('Failed to credit winnings');
-            }
-          }).catch(console.error);
-        } else if (isDemoMode && won) {
-          // Demo mode - update local balance
-          updateBalance(payout, 'add');
+          // Regular PnL Update
+          if (Math.abs(pnl - (bet.unrealizedPnL || 0)) > 0.0001) {
+            betsModified = true;
+            return { ...bet, unrealizedPnL: pnl };
+          }
         }
+
+        return bet;
+      });
+
+      if (betsModified) {
+        nextStateUpdates.activeBets = updatedBets;
       }
+    }
 
-      // Unrealized PnL calculation for Perp positions
-      if (bet.mode === 'perp' && betAsset === currentSelectedAsset && bet.entryPrice && bet.status === 'active') {
-        const priceDiff = finalPrice - bet.entryPrice;
-        const priceChangePercent = priceDiff / bet.entryPrice;
-        const pnl = bet.amount * priceChangePercent * (bet.leverage || 1) * (bet.direction === 'UP' ? 1 : -1);
-
-        // Update the bet in the state (optimistic update for UI)
-        set((state: GameState) => ({
-          activeBets: state.activeBets.map(b => b.id === bet.id ? { ...b, unrealizedPnL: pnl } : b)
-        }));
-
-        // Simple Liquidation Check
-        if (pnl <= -bet.amount * 0.95) { // 95% loss = liquidation
-          resolveBet(bet.id, false, 0);
-          playLoseSound();
-        }
-      }
-    });
+    // APPLY ALL UPDATES AT ONCE
+    set(nextStateUpdates);
   },
 
 

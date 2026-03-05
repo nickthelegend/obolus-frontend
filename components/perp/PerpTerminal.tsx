@@ -63,9 +63,19 @@ export function PerpTerminal() {
     const handleTrade = async (side: 'long' | 'short') => {
         if (!address || !size || !account || isPlacing) return;
 
-        const tradePrice = currentPrice; // Capture current price snapshot
+        if (currentPrice <= 0) {
+            alert("Market price not loaded. Please wait for the Pyth price feed to initialize.");
+            return;
+        }
+
+        const tradePrice = currentPrice;
         const collateralAmount = parseFloat(size) * tradePrice / leverage;
         const collateralBaseUnits = BigInt(Math.floor(collateralAmount * 1e6)); // 6 decimals for USDT
+
+        if (collateralBaseUnits <= 0n) {
+            alert("Calculated collateral is too small (less than 0.000001 USDT). Please increase your size or decrease leverage.");
+            return;
+        }
 
         console.log(`[Trade] Initiating ${side} ${size} @ ${leverage}x. Price: ${tradePrice}, Collateral: ${collateralBaseUnits}`);
 
@@ -100,7 +110,7 @@ export function PerpTerminal() {
                         const zkProof = await generateTradeProof(
                             tongoPrivKey, // secret
                             collateralBaseUnits.toString(), // amount
-                            address.toString() // recipient (using wallet address)
+                            address // recipient (using wallet address)
                         );
                         if (zkProof) {
                             console.log("[ZK] Proof generated successfully!");
@@ -127,17 +137,17 @@ export function PerpTerminal() {
             setEncryptionModalTitle("Encrypting Order Payload");
             setEncryptionCompleteCallback(() => async () => {
                 setIsEncryptionModalOpen(false);
-                await executeTrade(side, collateralAmount, collateralBaseUnits, finalSizeL, finalSizeR, finalPriceL, finalPriceR, finalZkCalldata, finalCommitment, finalNullifier);
+                await executeTrade(side, collateralAmount, collateralBaseUnits, tradePrice, finalSizeL, finalSizeR, finalPriceL, finalPriceR, finalZkCalldata, finalCommitment, finalNullifier);
             });
             setIsEncryptionModalOpen(true);
         } else {
             // Mocks as fallback for unsealed/plaintext
-            const mockProof = generateMockProof(collateralBaseUnits, address);
-            await executeTrade(side, collateralAmount, collateralBaseUnits, "0x123", "0x456", "0x789", "0xabc", mockProof, "0", "0");
+            const mockProof = generateMockProof(collateralBaseUnits, address!);
+            await executeTrade(side, collateralAmount, collateralBaseUnits, tradePrice, "0x123", "0x456", "0x789", "0xabc", mockProof, "0", "0");
         }
     };
 
-    const executeTrade = async (side: 'long' | 'short', collateralAmount: number, collateralBaseUnits: bigint, sizeL: string, sizeR: string, priceL: string, priceR: string, zkCalldata: string[], commitment: string, nullifier: string) => {
+    const executeTrade = async (side: 'long' | 'short', collateralAmount: number, collateralBaseUnits: bigint, tradePrice: number, sizeL: string, sizeR: string, priceL: string, priceR: string, zkCalldata: string[], commitment: string, nullifier: string) => {
         setIsPlacing(true);
         console.log("Executing trade with:", {
             perpContract: process.env.NEXT_PUBLIC_PERP_CONTRACT,
@@ -199,7 +209,9 @@ export function PerpTerminal() {
                 collateralAmount.toFixed(4),
                 `${side === 'long' ? 'UP' : 'DOWN'}-${leverage}`,
                 address!,
-                `perp-${Date.now()}`
+                `perp-${Date.now()}`,
+                undefined,
+                tradePrice
             );
 
             alert(`Trade Executed!\nType: ${orderType.toUpperCase()}\nSize: ${size} @ ${leverage}x`);
@@ -575,25 +587,26 @@ export function PerpTerminal() {
                                     min="0"
                                     max="100"
                                     value={
-                                        currentPrice > 0 && size ?
+                                        currentPrice > 0 && houseBalance > 0 && size ?
                                             Math.min(100, Math.round((Number(size) / ((houseBalance * leverage) / currentPrice)) * 100)) || 0
                                             : 0
                                     }
                                     onChange={(e) => {
-                                        if (currentPrice > 0) {
+                                        if (currentPrice > 0 && houseBalance > 0) {
                                             const percentage = Number(e.target.value);
                                             const maxSize = (houseBalance * leverage) / currentPrice;
                                             const calculatedSize = (maxSize * (percentage / 100)).toFixed(4);
                                             setSize(percentage === 0 ? '' : calculatedSize);
                                         }
                                     }}
-                                    className="w-full accent-stark-orange h-1 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                                    className={`w-full accent-stark-orange h-1 bg-white/10 rounded-lg appearance-none cursor-pointer ${currentPrice <= 0 || houseBalance <= 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    disabled={currentPrice <= 0 || houseBalance <= 0}
                                 />
                                 <div className="flex justify-between items-center px-1 text-[9px] text-muted-foreground font-bold tracking-widest">
-                                    <span className="hover:text-white cursor-pointer transition-colors" onClick={() => currentPrice > 0 && setSize(((houseBalance * leverage * 0.25) / currentPrice).toFixed(4))}>25%</span>
-                                    <span className="hover:text-white cursor-pointer transition-colors" onClick={() => currentPrice > 0 && setSize(((houseBalance * leverage * 0.5) / currentPrice).toFixed(4))}>50%</span>
-                                    <span className="hover:text-white cursor-pointer transition-colors" onClick={() => currentPrice > 0 && setSize(((houseBalance * leverage * 0.75) / currentPrice).toFixed(4))}>75%</span>
-                                    <span className="hover:text-stark-orange cursor-pointer transition-colors" onClick={() => currentPrice > 0 && setSize(((houseBalance * leverage) / currentPrice).toFixed(4))}>100%</span>
+                                    <span className="hover:text-white cursor-pointer transition-colors" onClick={() => currentPrice > 0 && houseBalance > 0 && setSize(((houseBalance * leverage * 0.25) / currentPrice).toFixed(4))}>25%</span>
+                                    <span className="hover:text-white cursor-pointer transition-colors" onClick={() => currentPrice > 0 && houseBalance > 0 && setSize(((houseBalance * leverage * 0.5) / currentPrice).toFixed(4))}>50%</span>
+                                    <span className="hover:text-white cursor-pointer transition-colors" onClick={() => currentPrice > 0 && houseBalance > 0 && setSize(((houseBalance * leverage * 0.75) / currentPrice).toFixed(4))}>75%</span>
+                                    <span className="hover:text-stark-orange cursor-pointer transition-colors" onClick={() => currentPrice > 0 && houseBalance > 0 && setSize(((houseBalance * leverage) / currentPrice).toFixed(4))}>100%</span>
                                 </div>
                             </div>
                         </div>
@@ -612,7 +625,7 @@ export function PerpTerminal() {
                                     const newLeverage = Number(e.target.value);
                                     setLeverage(newLeverage);
                                     // Optionally recalculate size if it exceeds new max
-                                    if (currentPrice > 0 && size) {
+                                    if (currentPrice > 0 && houseBalance > 0 && size) {
                                         const newMaxSize = (houseBalance * newLeverage) / currentPrice;
                                         if (Number(size) > newMaxSize) {
                                             setSize(newMaxSize.toFixed(4));
