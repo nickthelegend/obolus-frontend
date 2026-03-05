@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, ArrowUpRight, ArrowDownRight, AlertTriangle } from 'lucide-react';
+import { Shield, ArrowUpRight, ArrowDownRight, AlertTriangle, Zap } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { liquidatePosition } from '@/lib/perp';
 
@@ -85,38 +85,41 @@ export function SealedPositionList({ tongoPrivKey, filterMode }: { tongoPrivKey:
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-6 text-right">
+                        <div className="flex items-center gap-4 text-right">
                             <div>
-                                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-0.5">Lev.</p>
-                                <p className="text-stark-purple font-mono text-sm">{bet.multiplier}x</p>
+                                <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest mb-0.5">Lev.</p>
+                                <p className="text-stark-purple font-mono text-xs">{bet.multiplier}x</p>
                             </div>
-                            <div className="w-24">
-                                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest mb-0.5">Unrealized PnL</p>
-                                <p className={`font-mono text-sm font-bold ${isProfit ? 'text-green-500' : 'text-red-500'}`}>{pnlString}</p>
+                            <div className="w-20">
+                                <p className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest mb-0.5">PnL</p>
+                                <p className={`font-mono text-xs font-bold ${isProfit ? 'text-green-500' : 'text-red-500'}`}>{pnlString}</p>
                             </div>
-                            <div className="flex gap-2">
-                                {isLiquidatable && account && (
-                                    <button
-                                        onClick={async () => {
-                                            if (account) {
-                                                const tx = await liquidatePosition(account, 1); // For demo, assume first position
-                                                console.log("Liquidation Tx:", tx.transaction_hash);
-                                            }
-                                        }}
-                                        className="px-3 py-1 bg-red-500/20 text-red-500 border border-red-500/30 rounded-md text-[10px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all shadow-[0_0_10px_rgba(239,68,68,0.3)]"
-                                    >
-                                        Liquidate
-                                    </button>
-                                )}
-                                {bet.mode === 'perp' && (
-                                    <button
-                                        onClick={() => address && account && closePerpPosition(bet.id, address, account)}
-                                        className="px-3 py-1 bg-white/10 hover:bg-red-500/20 hover:text-red-500 border border-white/10 rounded-md text-[10px] font-black uppercase tracking-widest transition-all"
-                                    >
-                                        Close
-                                    </button>
-                                )}
-                            </div>
+                            {isLiquidatable && account && (
+                                <button
+                                    onClick={async () => {
+                                        if (account) {
+                                            const tx = await liquidatePosition(account, 1);
+                                            console.log("Liquidation Tx:", tx.transaction_hash);
+                                        }
+                                    }}
+                                    className="px-2 py-1 bg-red-500/10 text-red-500 border border-red-500/20 rounded text-[9px] font-black uppercase tracking-tight hover:bg-red-500 hover:text-white transition-all"
+                                >
+                                    Rect
+                                </button>
+                            )}
+                            <button
+                                onClick={() => {
+                                    if (!address || !account) {
+                                        alert("Please connect your wallet to close positions.");
+                                        return;
+                                    }
+                                    closePerpPosition(bet.id, address, account);
+                                }}
+                                className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 shadow-sm border ${(!address || !account) ? 'bg-white/5 text-white/30 border-white/5 cursor-not-allowed' : 'bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500 hover:text-white'}`}
+                            >
+                                <Zap className="w-3 h-3" />
+                                {(!address || !account) ? 'Locked' : 'Close'}
+                            </button>
                         </div>
                     </div>
                 );

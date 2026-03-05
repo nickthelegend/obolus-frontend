@@ -483,7 +483,10 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
     const { activeBets } = get();
     const position = activeBets.find((b: ActiveBet) => b.id === betId);
 
-    if (!position || position.mode !== 'perp') return;
+    if (!position) {
+      console.warn(`Close failed: Position ${betId} not found.`);
+      return;
+    }
 
     try {
       const pnl = position.unrealizedPnL || 0;
@@ -516,24 +519,31 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
         }
       }
 
-      // 2. Off-chain balance update (Convex)
-      // If winAmount is zero, we still call the API but ensure it's handled
-      const response = await fetch('/api/balance/win', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userAddress,
-          winAmount: Math.max(0, totalToRefund),
-          betId: betId
-        })
-      });
+      const isDemoMode = userAddress.startsWith('0xDEMO') || get().accountType === 'demo';
+      let data = { newBalance: undefined };
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to settle perp position in house balance");
+      if (!isDemoMode) {
+        // 2. Off-chain balance update (Convex) - only for real accounts
+        try {
+          const response = await fetch('/api/balance/win', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userAddress,
+              winAmount: Math.max(0, totalToRefund),
+              betId: betId
+            })
+          });
+
+          if (response.ok) {
+            data = await response.json();
+          } else {
+            console.warn("API balance update failed, falling back to local update.");
+          }
+        } catch (apiErr) {
+          console.error("API Error during close:", apiErr);
+        }
       }
-
-      const data = await response.json();
 
       // 3. Save to bet history
       fetch('/api/bets/save', {
@@ -556,10 +566,17 @@ export const createGameSlice: StateCreator<any> = (set, get) => ({
       }).catch(err => console.error('Failed to save history:', err));
 
       // 4. Update local state
+      if (isDemoMode) {
+        get().updateBalance(totalToRefund, 'add');
+      }
+
       set((state: any) => ({
         activeBets: state.activeBets.filter((b: any) => b.id !== betId),
         settledBets: [{ ...position, status: 'settled', unrealizedPnL: pnl }, ...state.settledBets].slice(0, 50),
-        houseBalance: data.newBalance !== undefined ? data.newBalance : (state.houseBalance + totalToRefund),
+        // Update houseBalance ONLY if NOT demo mode and we have new data
+        ...(!isDemoMode && {
+          houseBalance: data.newBalance !== undefined ? data.newBalance : (state.houseBalance + totalToRefund)
+        }),
         isSettling: false
       }));
 
